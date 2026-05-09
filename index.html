@@ -1,558 +1,560 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>持仓监控</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background-color: #f5f5f5;
-      color: #333;
-    }
-    /* 顶部导航栏 */
-    .header {
-      background: #fff;
-      padding: 12px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 18px;
-      font-weight: 600;
-    }
-    .header-icon {
-      width: 28px;
-      height: 28px;
-      background: #1677ff;
-      border-radius: 4px;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-    }
-    .header-time {
-      font-size: 14px;
-      color: #666;
-    }
-    /* 工具栏 */
-    .toolbar {
-      margin: 12px 20px;
-      padding: 12px 16px;
-      background: #fff;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .search-area {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .search-input {
-      padding: 6px 12px;
-      border: 1px solid #d9d9d9;
-      border-radius: 4px;
-      font-size: 14px;
-      width: 180px;
-    }
-    .search-input:focus {
-      outline: none;
-      border-color: #1677ff;
-    }
-    .filter-select {
-      padding: 6px 12px;
-      border: 1px solid #d9d9d9;
-      border-radius: 4px;
-      font-size: 14px;
-      background: #fff;
-      cursor: pointer;
-    }
-    .filter-select:focus {
-      outline: none;
-      border-color: #1677ff;
-    }
-    .data-count {
-      font-size: 14px;
-      color: #666;
-    }
-    .legend {
-      display: flex;
-      gap: 16px;
-      font-size: 12px;
-      color: #666;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-    }
-    .dot-red {
-      background: #ff4d4f;
-    }
-    .dot-green {
-      background: #52c41a;
-    }
-    /* 表格容器 */
-    .table-wrap {
-      margin: 0 20px 20px;
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th {
-      background: #fafafa;
-      padding: 12px 8px;
-      text-align: left;
-      font-weight: 500;
-      font-size: 13px;
-      color: #666;
-      border-bottom: 1px solid #f0f0f0;
-      cursor: pointer;
-      user-select: none;
-      transition: background 0.2s;
-    }
-    th:hover {
-      background: #f0f0f0;
-    }
-    th.sorted {
-      color: #1677ff;
-    }
-    td {
-      padding: 12px 8px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .row-low {
-      background-color: #f6ffed;
-    }
-    .main-text {
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    .sub-text {
-      font-size: 12px;
-      line-height: 1.4;
-      color: #999;
-    }
-    .text-red {
-      color: #ff4d4f;
-    }
-    .text-green {
-      color: #52c41a;
-    }
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #666;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>📈 实时股票监控 | 一键刷新·智能筛选</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #f5f7fb;
+            color: #1e293b;
+            padding: 24px 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            background: white;
+            border-radius: 28px;
+            padding: 20px 28px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+            border: 1px solid #e9eef3;
+        }
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e2b3c, #2c4c6e);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge { background: #eef2ff; color: #1e4b7a; font-size: 0.75rem; border-radius: 40px; padding: 4px 12px; font-weight: 500; }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .filter-area { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .search-box {
+            background: #f8fafc;
+            border: 1px solid #dce3eb;
+            border-radius: 60px;
+            padding: 8px 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .search-box input { border: none; background: transparent; font-size: 0.9rem; width: 200px; outline: none; font-weight: 500; }
+        .refresh-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f8fafc;
+            padding: 5px 16px;
+            border-radius: 48px;
+            border: 1px solid #e2e8f0;
+        }
+        select, button {
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 40px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button.primary { background: #1e4b7a; border-color: #1e4b7a; color: white; }
+        button.primary:hover { background: #0f3b5f; }
+        button:hover { background: #e6edf4; }
+        .last-update { font-size: 0.75rem; color: #5b6e8c; background: #f1f5f9; padding: 4px 12px; border-radius: 32px; }
+        .table-wrapper {
+            background: white;
+            border-radius: 24px;
+            border: 1px solid #eef2f8;
+            overflow-x: auto;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.02);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 860px; }
+        th {
+            text-align: left;
+            padding: 16px 16px;
+            background: #fafcff;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 1px solid #e9edf2;
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover { background: #f0f4fa; }
+        td { padding: 14px 16px; border-bottom: 1px solid #f0f2f6; font-weight: 500; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background-color: #fafcff; }
+        .stock-name { font-weight: 700; color: #0f2b3d; }
+        .code { font-family: monospace; font-size: 0.8rem; color: #5f7f9e; }
+        .price-up { color: #d0312d; font-weight: 600; }
+        .price-down { color: #1f8a4c; font-weight: 600; }
+        .profit-up { color: #d0312d; font-weight: 600; }
+        .profit-down { color: #1f8a4c; font-weight: 600; }
+        .neutral { color: #6c7a91; }
+        .upload-area {
+            background: #fefce8;
+            border: 1px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sort-icon { font-size: 0.7rem; margin-left: 6px; opacity: 0.7; }
+        .footer-note { margin-top: 20px; text-align: center; font-size: 0.7rem; color: #8ba0bc; }
+        @media (max-width: 680px) {
+            body { padding: 16px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-box input { width: 100%; }
+        }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-title">
-      <div class="header-icon">📊</div>
-      持仓监控
+<div class="container">
+    <div class="header">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <h1>📊 股票鹰眼 · 实时监控</h1>
+                <div class="badge">📉 成本追踪</div>
+            </div>
+            <div class="upload-area">
+                📂 上传 Excel: 
+                <input type="file" id="uploadExcel" accept=".xlsx, .xls" style="max-width: 160px;">
+                <span style="color:#5f6c84;">| 默认 data.xlsx</span>
+            </div>
+        </div>
+        <div class="toolbar">
+            <div class="filter-area">
+                <div class="search-box">
+                    🔍 <input type="text" id="filterInput" placeholder="名称 / 代码筛选" autocomplete="off">
+                </div>
+                <button id="resetFilterBtn">🗑️ 重置筛选</button>
+            </div>
+            <div class="refresh-ctrl">
+                <span>⏱️ 刷新间隔</span>
+                <select id="intervalSelect">
+                    <option value="5">5 秒</option>
+                    <option value="10" selected>10 秒</option>
+                    <option value="30">30 秒</option>
+                    <option value="60">60 秒</option>
+                </select>
+                <button id="manualRefreshBtn" class="primary">🔄 立即刷新</button>
+                <div id="updateTimeBadge" class="last-update">⏳ 等待数据...</div>
+            </div>
+        </div>
     </div>
-    <div class="header-time" id="currentTime"></div>
-  </div>
-
-  <div class="toolbar">
-    <div class="search-area">
-      <input type="text" class="search-input" id="searchInput" placeholder="搜索名称 / 代码...">
-      <select id="filterSelect" class="filter-select">
-        <option value="all">全部持仓</option>
-        <option value="high">仅高于入场</option>
-        <option value="low">仅低于入场</option>
-      </select>
-      <div class="data-count" id="dataCount">0 支持仓</div>
+    <div class="table-wrapper">
+        <table id="stockTable">
+            <thead>
+                <tr>
+                    <th data-sort="name">📄 股票名称 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="symbol">🆔 代码 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="costPrice">💰 重仓价格 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="currentPrice">⚡ 实时价格 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="change">📊 涨跌额 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="changePercent">📈 涨跌幅 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="profitRate">🎯 盈亏比例 <span class="sort-icon">↕️</span></th>
+                    <th data-sort="profitAmount">💎 浮动盈亏 <span class="sort-icon">↕️</span></th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="8" style="text-align:center; padding: 48px;">📁 正在加载 data.xlsx 或等待上传...</td></tr>
+            </tbody>
+        </table>
     </div>
-    <div class="legend">
-      <div class="legend-item">
-        <span class="legend-dot dot-red"></span>
-        高于入场
-      </div>
-      <div class="legend-item">
-        <span class="legend-dot dot-green"></span>
-        低于入场
-      </div>
+    <div class="footer-note">
+        ⚡ 数据源：新浪财经 (JSONP 跨域) | 每 <span id="intervalHint">10</span> 秒自动刷新 | 点击表头排序
     </div>
-  </div>
+</div>
 
-  <div class="table-wrap">
-    <div class="loading" id="loading">正在加载数据...</div>
-    <table id="dataTable" style="display: none;">
-      <thead>
-        <tr>
-          <th data-sort-key="名称">名称</th>
-          <th data-sort-key="价格">价格</th>
-          <th data-sort-key="入场价">入场</th>
-          <th data-sort-key="垂仓价">垂仓</th>
-          <th data-sort-key="今日涨跌幅">今日</th>
-          <th data-sort-key="昨日涨跌幅">昨日</th>
-          <th data-sort-key="止盈1价">止盈1</th>
-          <th data-sort-key="止盈2价">止盈2</th>
-          <th data-sort-key="年初价">年初价</th>
-          <th data-sort-key="更新时间">更新</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody">
-      </tbody>
-    </table>
-  </div>
+<script>
+    // ---------- 全局状态 ----------
+    let masterStocks = [];          // { name, rawSymbol, symbolForMarket, costPrice, currentPrice, change, changePercent, profitRate, profitAmount }
+    let filterText = '';
+    let sortKey = null;             
+    let sortDirection = 'asc';
+    let refreshTimer = null;
+    let refreshIntervalSec = 10;
+    let isLoading = false;
 
-  <script>
-    // 更新时间
-    function updateTime() {
-      const now = new Date();
-      const timeStr = now.toTimeString().slice(0, 8);
-      document.getElementById('currentTime').textContent = timeStr;
-    }
-    setInterval(updateTime, 1000);
-    updateTime();
+    // DOM
+    const tbody = document.getElementById('tableBody');
+    const filterInput = document.getElementById('filterInput');
+    const resetFilterBtn = document.getElementById('resetFilterBtn');
+    const intervalSelect = document.getElementById('intervalSelect');
+    const manualRefreshBtn = document.getElementById('manualRefreshBtn');
+    const updateTimeBadge = document.getElementById('updateTimeBadge');
+    const uploadExcelInput = document.getElementById('uploadExcel');
+    const intervalHintSpan = document.getElementById('intervalHint');
 
-    // 全局数据
-    let originalData = [];
-    // 排序配置
-    let sortConfig = {
-      key: '',
-      direction: 'asc'
+    // 辅助
+    const toFixed2 = (v) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(2) : '--';
+    const toFixed2Signed = (v) => {
+        if (typeof v !== 'number' || isNaN(v)) return '--';
+        return v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
+    };
+    const toPercent = (v) => {
+        if (typeof v !== 'number' || isNaN(v)) return '--';
+        return v > 0 ? `+${v.toFixed(2)}%` : `${v.toFixed(2)}%`;
+    };
+    const escapeHtml = (s) => {
+        if (!s) return '';
+        return s.replace(/[&<>]/g, (m) => (m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'));
     };
 
-    // 过滤数据
-    function filterData(data, keyword, filterType) {
-      let filtered = [...data];
-      // 先处理状态筛选
-      if (filterType === 'high') {
-        filtered = filtered.filter(item => {
-          const price = parseFloat(item.价格) || 0;
-          const entry = parseFloat(item.入场价) || 0;
-          return price >= entry;
-        });
-      } else if (filterType === 'low') {
-        filtered = filtered.filter(item => {
-          const price = parseFloat(item.价格) || 0;
-          const entry = parseFloat(item.入场价) || 0;
-          return price < entry;
-        });
-      }
-      // 再处理搜索过滤
-      if (keyword) {
-        filtered = filtered.filter(item => {
-          const name = (item.名称 || '').toLowerCase();
-          const code = (item.代码 || '').toLowerCase();
-          return name.includes(keyword) || code.includes(keyword);
-        });
-      }
-      return filtered;
+    // 转换A股代码格式 (新浪需要 sh/sz 前缀)
+    function toMarketCode(raw) {
+        if (!raw) return null;
+        let code = String(raw).trim().toUpperCase();
+        if (code.startsWith('SH') || code.startsWith('SZ')) return code;
+        if (/^\d+$/.test(code)) {
+            if (code.startsWith('6') || code.startsWith('688') || code.startsWith('689')) return 'sh' + code;
+            if (code.startsWith('0') || code.startsWith('3') || code.startsWith('002') || code.startsWith('001')) return 'sz' + code;
+            return 'sh' + code; // 默认沪市
+        }
+        return code;
     }
 
-    // 排序数据
-    function sortData(data, key, direction) {
-      if (!key) return data;
-      return [...data].sort((a, b) => {
-        let valA = a[key];
-        let valB = b[key];
-        // 处理数字类型
-        if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
-          valA = parseFloat(valA);
-          valB = parseFloat(valB);
-        } else {
-          // 字符串按中文拼音排序
-          valA = valA || '';
-          valB = valB || '';
-          return valA.localeCompare(valB, 'zh-CN');
-        }
-        // 根据排序方向返回结果
-        if (direction === 'asc') {
-          return valA - valB;
-        } else {
-          return valB - valA;
-        }
-      });
-    }
-
-    // 更新表头排序标记
-    function updateHeaderSort() {
-      const ths = document.querySelectorAll('th');
-      ths.forEach(th => {
-        th.classList.remove('sorted');
-        const key = th.dataset.sortKey;
-        if (key === sortConfig.key) {
-          th.classList.add('sorted');
-          th.innerHTML = th.innerHTML.replace(/[↑↓]/g, '') + (sortConfig.direction === 'asc' ? ' ↑' : ' ↓');
-        } else {
-          th.innerHTML = th.innerHTML.replace(/[↑↓]/g, '');
-        }
-      });
-    }
-
-    // 渲染表格
-    function renderTable() {
-      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
-      const filterType = document.getElementById('filterSelect').value;
-      
-      // 先过滤，再排序
-      let processedData = filterData(originalData, keyword, filterType);
-      processedData = sortData(processedData, sortConfig.key, sortConfig.direction);
-
-      const tbody = document.getElementById('tableBody');
-      tbody.innerHTML = '';
-      document.getElementById('dataCount').textContent = `${processedData.length} 支持仓`;
-
-      processedData.forEach(item => {
-        const row = document.createElement('tr');
-        // 判断是否低于入场价，设置行背景
-        const price = parseFloat(item.价格) || 0;
-        const entryPrice = parseFloat(item.入场价) || 0;
-        if (price < entryPrice) {
-          row.classList.add('row-low');
-        }
-
-        // 名称+代码列
-        const nameTd = document.createElement('td');
-        nameTd.innerHTML = `
-          <div class="main-text">${item.名称 || ''} <span style="color:#999;font-size:12px">${item.代码 || ''}</span></div>
-        `;
-        row.appendChild(nameTd);
-
-        // 价格列
-        const priceTd = document.createElement('td');
-        const todayChange = parseFloat(item.今日涨跌幅) || 0;
-        const priceColor = todayChange >= 0 ? 'text-red' : 'text-green';
-        priceTd.innerHTML = `
-          <div class="main-text ${priceColor}">${item.价格 || ''}</div>
-          <div class="sub-text">${item.收盘 || '收盘'}</div>
-        `;
-        row.appendChild(priceTd);
-
-        // 入场列
-        const entryTd = document.createElement('td');
-        const entryChange = parseFloat(item.入场涨跌幅) || 0;
-        const entryColor = entryChange >= 0 ? 'text-red' : 'text-green';
-        entryTd.innerHTML = `
-          <div class="main-text">${item.入场价 || ''}</div>
-          <div class="sub-text ${entryColor}">${entryChange >= 0 ? '+' : ''}${entryChange.toFixed(2)}%</div>
-        `;
-        row.appendChild(entryTd);
-
-        // 垂仓列
-        const weightTd = document.createElement('td');
-        const weightChange = parseFloat(item.垂仓涨跌幅) || 0;
-        const weightColor = weightChange >= 0 ? 'text-red' : 'text-green';
-        weightTd.innerHTML = `
-          <div class="main-text">${item.垂仓价 || ''}</div>
-          <div class="sub-text ${weightColor}">${weightChange >= 0 ? '+' : ''}${weightChange.toFixed(2)}%</div>
-        `;
-        row.appendChild(weightTd);
-
-        // 今日列
-        const todayTd = document.createElement('td');
-        todayTd.innerHTML = `
-          <div class="main-text ${priceColor}">${todayChange >= 0 ? '+' : ''}${todayChange.toFixed(2)}%</div>
-        `;
-        row.appendChild(todayTd);
-
-        // 昨日列
-        const yesterdayTd = document.createElement('td');
-        const yesterdayChange = parseFloat(item.昨日涨跌幅) || 0;
-        const yesterdayColor = yesterdayChange >= 0 ? 'text-red' : 'text-green';
-        yesterdayTd.innerHTML = `
-          <div class="main-text ${yesterdayColor}">${yesterdayChange >= 0 ? '+' : ''}${yesterdayChange.toFixed(2)}%</div>
-        `;
-        row.appendChild(yesterdayTd);
-
-        // 止盈1列
-        const stop1Td = document.createElement('td');
-        const stop1Change = parseFloat(item.止盈1涨跌幅) || 0;
-        const stop1Color = stop1Change >= 0 ? 'text-red' : 'text-green';
-        stop1Td.innerHTML = `
-          <div class="main-text">${item.止盈1价 || ''}</div>
-          <div class="sub-text ${stop1Color}">${stop1Change >= 0 ? '+' : ''}${stop1Change.toFixed(2)}%</div>
-        `;
-        row.appendChild(stop1Td);
-
-        // 止盈2列
-        const stop2Td = document.createElement('td');
-        stop2Td.innerHTML = `
-          <div class="main-text">${item.止盈2价 || '-'}</div>
-        `;
-        row.appendChild(stop2Td);
-
-        // 年初价列
-        const yearTd = document.createElement('td');
-        yearTd.innerHTML = `
-          <div class="main-text">${item.年初价 || ''}</div>
-        `;
-        row.appendChild(yearTd);
-
-        // 更新时间列
-        const updateTd = document.createElement('td');
-        updateTd.innerHTML = `
-          <div class="main-text">${item.更新时间 || ''}</div>
-        `;
-        row.appendChild(updateTd);
-
-        tbody.appendChild(row);
-      });
-
-      // 更新表头的排序标记
-      updateHeaderSort();
-    }
-
-    // 表头排序点击事件
-    document.querySelectorAll('th').forEach(th => {
-      th.addEventListener('click', function() {
-        const key = this.dataset.sortKey;
-        if (sortConfig.key === key) {
-          // 切换排序方向
-          sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
-        } else {
-          // 新的排序列，默认升序
-          sortConfig.key = key;
-          sortConfig.direction = 'asc';
-        }
-        renderTable();
-      });
-    });
-
-    // 搜索功能
-    document.getElementById('searchInput').addEventListener('input', function() {
-      renderTable();
-    });
-
-    // 筛选功能
-    document.getElementById('filterSelect').addEventListener('change', function() {
-      renderTable();
-    });
-
-    // 获取A股实时价格的函数，使用script标签加载，兼容所有环境
-    function fetchRealTimePrice() {
-      if (!originalData || originalData.length === 0) return;
-
-      try {
-        // 处理股票代码，生成接口的参数
-        const codes = originalData.map(item => {
-          const code = item.代码 || '';
-          if (code.startsWith('6')) {
-            return 'sh' + code; // 沪市股票，6开头
-          } else {
-            return 'sz' + code; // 深市股票，0/3开头
-          }
+    // ---------- JSONP 获取实时行情 (通过 script 标签, 绕过 CORS) ----------
+    function fetchQuotesByJsonp(stocks) {
+        return new Promise((resolve, reject) => {
+            if (!stocks.length) return resolve([]);
+            const validStocks = stocks.filter(s => s.symbolForMarket);
+            if (!validStocks.length) return resolve([]);
+            const codeList = validStocks.map(s => s.symbolForMarket).join(',');
+            const script = document.createElement('script');
+            script.src = `https://hq.sinajs.cn/list=${codeList}`;
+            script.charset = 'gb2312';   // 新浪返回 GBK 编码，避免中文乱码
+            script.onload = () => {
+                // 数据已经写入 window 全局变量，格式如 window["hq_str_sh600036"]
+                const quoteMap = new Map();
+                for (let stock of validStocks) {
+                    const varName = `hq_str_${stock.symbolForMarket}`;
+                    const dataStr = window[varName];
+                    if (dataStr && typeof dataStr === 'string') {
+                        const parts = dataStr.split(',');
+                        if (parts.length >= 6) {
+                            const prevClose = parseFloat(parts[2]);
+                            const current = parseFloat(parts[3]);
+                            if (!isNaN(prevClose) && !isNaN(current)) {
+                                const changeVal = current - prevClose;
+                                const changePercent = (changeVal / prevClose) * 100;
+                                quoteMap.set(stock.symbolForMarket, {
+                                    currentPrice: current,
+                                    change: changeVal,
+                                    changePercent: changePercent,
+                                    prevClose: prevClose,
+                                    nameRaw: parts[0]
+                                });
+                            }
+                        }
+                    }
+                    // 清理全局变量（可选）
+                    delete window[varName];
+                }
+                resolve(quoteMap);
+                document.head.removeChild(script);
+            };
+            script.onerror = (err) => {
+                console.error('JSONP 请求失败', err);
+                reject(new Error('新浪行情接口请求失败，请检查网络'));
+                document.head.removeChild(script);
+            };
+            document.head.appendChild(script);
         });
+    }
 
-        // 动态创建script标签，加载新浪的接口，不受跨域限制
-        const script = document.createElement('script');
-        script.src = `https://hq.sinajs.cn/list=${codes.join(',')}`;
-        
-        script.onload = function() {
-          // 加载完成后，解析全局变量里的数据
-          codes.forEach(code => {
-            // 新浪接口会把数据存在全局变量hq_str_+code里
-            const dataStr = window[`hq_str_${code}`];
-            if (!dataStr) return;
-            const data = dataStr.split(',');
-            
-            // 找到对应的持仓数据项
-            const rawCode = code.replace('sh', '').replace('sz', '');
-            const item = originalData.find(d => d.代码 === rawCode);
-            if (!item) return;
-
-            // 更新实时数据
-            const preClose = parseFloat(data[2]) || 0; // 昨收价
-            const newPrice = parseFloat(data[1]) || 0; // 最新价格
-            if (newPrice > 0) {
-              item.价格 = newPrice.toFixed(2);
-              // 重新计算今日涨跌幅
-              item.今日涨跌幅 = ((newPrice - preClose) / preClose * 100).toFixed(2);
-              // 重新计算入场涨跌幅
-              const entryPrice = parseFloat(item.入场价) || 0;
-              if (entryPrice > 0) {
-                item.入场涨跌幅 = ((newPrice - entryPrice) / entryPrice * 100).toFixed(2);
-              }
-              // 重新计算垂仓涨跌幅
-              const weightPrice = parseFloat(item.垂仓价) || 0;
-              if (weightPrice > 0) {
-                item.垂仓涨跌幅 = ((newPrice - weightPrice) / weightPrice * 100).toFixed(2);
-              }
+    // 刷新所有股票实时价格
+    async function refreshQuotes() {
+        if (isLoading || !masterStocks.length) {
+            if (!masterStocks.length) updateTimeBadge.innerHTML = '⏳ 无数据，请上传';
+            return;
+        }
+        isLoading = true;
+        updateTimeBadge.innerHTML = '🔄 刷新中...';
+        try {
+            const quoteMap = await fetchQuotesByJsonp(masterStocks);
+            // 更新 masterStocks 中的实时字段
+            for (let stock of masterStocks) {
+                const mc = stock.symbolForMarket;
+                if (mc && quoteMap.has(mc)) {
+                    const q = quoteMap.get(mc);
+                    stock.currentPrice = q.currentPrice;
+                    stock.change = q.change;
+                    stock.changePercent = q.changePercent;
+                    stock.prevClose = q.prevClose;
+                    // 计算盈亏比例和金额 (基于重仓价格)
+                    if (typeof stock.costPrice === 'number' && !isNaN(stock.costPrice) && stock.costPrice !== 0) {
+                        stock.profitRate = ((stock.currentPrice - stock.costPrice) / stock.costPrice) * 100;
+                        stock.profitAmount = stock.currentPrice - stock.costPrice;
+                    } else {
+                        stock.profitRate = null;
+                        stock.profitAmount = null;
+                    }
+                } else {
+                    // 无数据时保留上次或置空
+                    if (stock.currentPrice === undefined) {
+                        stock.currentPrice = null;
+                        stock.change = null;
+                        stock.changePercent = null;
+                        stock.profitRate = null;
+                        stock.profitAmount = null;
+                    }
+                }
             }
-
-            // 清理全局变量，防止污染
-            delete window[`hq_str_${code}`];
-          });
-
-          // 更新表格渲染
-          renderTable();
-          // 清理script标签
-          document.body.removeChild(script);
-        };
-
-        script.onerror = function() {
-          console.log('实时价格获取失败，将使用你Excel里的静态数据');
-          document.body.removeChild(script);
-        };
-
-        document.body.appendChild(script);
-      } catch (err) {
-        console.log('实时价格获取失败，将使用你Excel里的静态数据', err);
-      }
-    }
-
-    // 加载Excel数据，部署后自动加载
-    async function loadData() {
-      try {
-        // 自动加载同目录下的data.xlsx
-        const response = await fetch('data.xlsx');
-        if (!response.ok) {
-          throw new Error('未找到数据文件，请确保data.xlsx和HTML文件在同一目录');
+            const now = new Date();
+            updateTimeBadge.innerHTML = `🕒 更新: ${now.toLocaleTimeString()}`;
+            filterAndSortAndRender();   // 刷新表格视图
+        } catch (err) {
+            console.error(err);
+            updateTimeBadge.innerHTML = `⚠️ 刷新失败 ${new Date().toLocaleTimeString()}`;
+        } finally {
+            isLoading = false;
         }
-        const arrayBuffer = await response.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        // 读取第一个工作表
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        // 转换为JSON
-        originalData = XLSX.utils.sheet_to_json(worksheet);
-        
-        // 初始化渲染
-        renderTable();
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('dataTable').style.display = 'table';
-
-        // 加载实时价格
-        fetchRealTimePrice();
-        // 每分钟自动更新一次实时价格
-        setInterval(fetchRealTimePrice, 60000);
-      } catch (err) {
-        document.getElementById('loading').textContent = err.message;
-        console.error(err);
-      }
     }
 
-    // 初始化加载
-    loadData();
-  </script>
+    // ---------- 筛选 + 排序 + 渲染 ----------
+    function filterAndSortAndRender() {
+        if (!masterStocks.length) {
+            renderEmptyTable();
+            return;
+        }
+        let filtered = [...masterStocks];
+        if (filterText.trim()) {
+            const kw = filterText.trim().toLowerCase();
+            filtered = filtered.filter(s =>
+                (s.name && s.name.toLowerCase().includes(kw)) ||
+                (s.rawSymbol && s.rawSymbol.toLowerCase().includes(kw))
+            );
+        }
+        if (sortKey) {
+            filtered.sort((a, b) => {
+                let aVal, bVal;
+                switch(sortKey) {
+                    case 'name': aVal = a.name || ''; bVal = b.name || ''; break;
+                    case 'symbol': aVal = a.rawSymbol || ''; bVal = b.rawSymbol || ''; break;
+                    case 'costPrice': aVal = a.costPrice ?? -Infinity; bVal = b.costPrice ?? -Infinity; break;
+                    case 'currentPrice': aVal = a.currentPrice ?? -Infinity; bVal = b.currentPrice ?? -Infinity; break;
+                    case 'change': aVal = a.change ?? -Infinity; bVal = b.change ?? -Infinity; break;
+                    case 'changePercent': aVal = a.changePercent ?? -Infinity; bVal = b.changePercent ?? -Infinity; break;
+                    case 'profitRate': aVal = a.profitRate ?? -Infinity; bVal = b.profitRate ?? -Infinity; break;
+                    case 'profitAmount': aVal = a.profitAmount ?? -Infinity; bVal = b.profitAmount ?? -Infinity; break;
+                    default: return 0;
+                }
+                if (aVal === bVal) return 0;
+                if (sortDirection === 'asc') return aVal > bVal ? 1 : -1;
+                else return aVal < bVal ? 1 : -1;
+            });
+        }
+        renderTable(filtered);
+    }
+
+    function renderTable(stocks) {
+        if (!stocks.length) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 40px;">📭 无匹配股票，请调整筛选</td></tr>';
+            return;
+        }
+        let html = '';
+        for (let s of stocks) {
+            const cur = (s.currentPrice !== undefined && s.currentPrice !== null && !isNaN(s.currentPrice)) ? s.currentPrice : null;
+            const change = (s.change !== undefined && s.change !== null && !isNaN(s.change)) ? s.change : null;
+            const changePercent = (s.changePercent !== undefined && s.changePercent !== null && !isNaN(s.changePercent)) ? s.changePercent : null;
+            const profitRate = (s.profitRate !== undefined && s.profitRate !== null && !isNaN(s.profitRate)) ? s.profitRate : null;
+            const profitAmt = (s.profitAmount !== undefined && s.profitAmount !== null && !isNaN(s.profitAmount)) ? s.profitAmount : null;
+            
+            const priceClass = (cur !== null && change !== null) ? (change >= 0 ? 'price-up' : 'price-down') : 'neutral';
+            const profitClass = (profitRate !== null) ? (profitRate >= 0 ? 'profit-up' : 'profit-down') : 'neutral';
+            
+            html += `<tr>
+                        <td class="stock-name">${escapeHtml(s.name)}</td>
+                        <td class="code">${escapeHtml(s.rawSymbol)}</td>
+                        <td>${toFixed2(s.costPrice)}</td>
+                        <td class="${priceClass}">${cur !== null ? cur.toFixed(2) : '--'}</td>
+                        <td class="${priceClass}">${toFixed2Signed(change)}</td>
+                        <td class="${priceClass}">${toPercent(changePercent)}</td>
+                        <td class="${profitClass}">${toPercent(profitRate)}</td>
+                        <td class="${profitClass}">${toFixed2Signed(profitAmt)}</td>
+                     </tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderEmptyTable() {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 48px;">📂 暂无股票数据，请上传 data.xlsx 或点击「上传 Excel」<br>（表格需包含列：股票名称、股票代码、重仓价格）</td></tr>';
+    }
+
+    // ---------- 解析 Excel ----------
+    function parseExcelAndLoad(dataBuffer) {
+        try {
+            const workbook = XLSX.read(dataBuffer, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+            if (!rows.length) throw new Error('Excel 无数据');
+            // 智能列名匹配
+            let nameKey = null, codeKey = null, priceKey = null;
+            for (let key of Object.keys(rows[0])) {
+                const k = String(key).toLowerCase();
+                if (k.includes('名称') || k === 'name' || k === '股票名称') nameKey = key;
+                if (k.includes('代码') || k === 'code' || k === '股票代码') codeKey = key;
+                if (k.includes('重仓') || k === 'cost' || k === '成本' || k === '重仓价格') priceKey = key;
+            }
+            if (!nameKey || !codeKey) throw new Error('未找到「股票名称」或「股票代码」列');
+            const newStocks = [];
+            for (let row of rows) {
+                let name = row[nameKey] ? String(row[nameKey]).trim() : '';
+                let rawSymbol = row[codeKey] ? String(row[codeKey]).trim().toUpperCase() : '';
+                if (!name || !rawSymbol) continue;
+                let cost = parseFloat(row[priceKey]);
+                if (isNaN(cost)) cost = 0;
+                const symbolForMarket = toMarketCode(rawSymbol);
+                if (!symbolForMarket) continue;
+                newStocks.push({
+                    name: name,
+                    rawSymbol: rawSymbol,
+                    symbolForMarket: symbolForMarket,
+                    costPrice: cost,
+                    currentPrice: null,
+                    change: null,
+                    changePercent: null,
+                    profitRate: null,
+                    profitAmount: null
+                });
+            }
+            if (!newStocks.length) throw new Error('有效股票数为0，检查列格式');
+            masterStocks = newStocks;
+            // 重置筛选排序
+            filterText = '';
+            filterInput.value = '';
+            sortKey = null;
+            sortDirection = 'asc';
+            filterAndSortAndRender();
+            // 重启定时器
+            if (refreshTimer) clearInterval(refreshTimer);
+            startAutoRefresh();
+            refreshQuotes();  // 立即获取最新价格
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
+        }
+    }
+
+    // 尝试加载默认 data.xlsx
+    async function loadDefaultExcel() {
+        try {
+            const res = await fetch('./data.xlsx');
+            if (!res.ok) throw new Error('文件不存在');
+            const buffer = await res.arrayBuffer();
+            parseExcelAndLoad(buffer);
+        } catch (err) {
+            console.warn('未找到 data.xlsx，等待用户上传', err);
+            masterStocks = [];
+            renderEmptyTable();
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+    }
+
+    // 自动刷新控制
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        if (!masterStocks.length) return;
+        refreshTimer = setInterval(() => {
+            if (masterStocks.length) refreshQuotes();
+        }, refreshIntervalSec * 1000);
+    }
+
+    function changeInterval(sec) {
+        refreshIntervalSec = sec;
+        intervalHintSpan.innerText = sec;
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            startAutoRefresh();
+        }
+    }
+
+    // 表头排序事件
+    function initSorting() {
+        const ths = document.querySelectorAll('#stockTable th');
+        ths.forEach(th => {
+            const attr = th.getAttribute('data-sort');
+            if (!attr) return;
+            th.addEventListener('click', () => {
+                if (sortKey === attr) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortKey = attr;
+                    sortDirection = 'asc';
+                }
+                filterAndSortAndRender();
+                updateSortIcons();
+            });
+        });
+    }
+    function updateSortIcons() {
+        const ths = document.querySelectorAll('#stockTable th');
+        ths.forEach(th => {
+            const attr = th.getAttribute('data-sort');
+            const icon = th.querySelector('.sort-icon');
+            if (icon) {
+                if (sortKey === attr) icon.innerHTML = sortDirection === 'asc' ? ' ↑' : ' ↓';
+                else icon.innerHTML = ' ↕️';
+            }
+        });
+    }
+
+    // 绑定UI事件
+    function bindUI() {
+        filterInput.addEventListener('input', (e) => {
+            filterText = e.target.value;
+            filterAndSortAndRender();
+        });
+        resetFilterBtn.addEventListener('click', () => {
+            filterText = '';
+            filterInput.value = '';
+            filterAndSortAndRender();
+        });
+        manualRefreshBtn.addEventListener('click', () => {
+            if (masterStocks.length) refreshQuotes();
+            else loadDefaultExcel();
+        });
+        intervalSelect.addEventListener('change', (e) => changeInterval(parseInt(e.target.value, 10)));
+        uploadExcelInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => parseExcelAndLoad(evt.target.result);
+            reader.readAsArrayBuffer(file);
+            uploadExcelInput.value = '';
+        });
+    }
+
+    // 初始化
+    async function init() {
+        bindUI();
+        await loadDefaultExcel();
+        initSorting();
+        if (masterStocks.length) {
+            startAutoRefresh();
+            refreshQuotes();
+        }
+    }
+    init();
+</script>
 </body>
 </html>
