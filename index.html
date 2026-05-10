@@ -1,1 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>📈 股票监控</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #f5f7fb;
+            color: #1e293b;
+        }
+        /* ---------- 密码锁遮罩 ---------- */
+        .password-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        .password-card {
+            background: white;
+            border-radius: 32px;
+            padding: 36px 32px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            animation: fadeInUp 0.4s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .password-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #1e2b3c, #2c4c6e);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .password-card p {
+            color: #5b6e8c;
+            margin-bottom: 28px;
+            font-size: 0.9rem;
+        }
+        .password-card input {
+            width: 100%;
+            padding: 14px 18px;
+            font-size: 1rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 60px;
+            outline: none;
+            transition: all 0.2s;
+            font-family: monospace;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        .password-card input:focus {
+            border-color: #1e4b7a;
+            box-shadow: 0 0 0 3px rgba(30,75,122,0.2);
+        }
+        .password-card button {
+            background: #1e4b7a;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            border-radius: 60px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .password-card button:hover {
+            background: #0f3b5f;
+        }
+        .error-msg {
+            color: #d0312d;
+            font-size: 0.8rem;
+            margin-top: 12px;
+            display: none;
+        }
+        /* 主内容初始隐藏 */
+        .main-content {
+            display: none;
+        }
+        /* 主内容原有样式 */
+        .container { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
+        .header {
+            background: white;
+            border-radius: 28px;
+            padding: 20px 28px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            margin-bottom: 24px;
+            border: 1px solid #e9eef3;
+        }
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e2b3c, #2c4c6e);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge { background: #eef2ff; color: #1e4b7a; font-size: 0.75rem; border-radius: 40px; padding: 4px 12px; font-weight: 500; }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .filter-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        .search-box {
+            background: #f8fafc;
+            border: 1px solid #dce3eb;
+            border-radius: 60px;
+            padding: 8px 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .search-box input { border: none; background: transparent; font-size: 0.9rem; width: 180px; outline: none; font-weight: 500; }
+        .category-filter {
+            background: #f8fafc;
+            border: 1px solid #dce3eb;
+            border-radius: 60px;
+            padding: 6px 16px;
+            font-size: 0.85rem;
+        }
+        .refresh-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f8fafc;
+            padding: 5px 16px;
+            border-radius: 48px;
+            border: 1px solid #e2e8f0;
+        }
+        select, button {
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 40px;
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button.primary { background: #1e4b7a; border-color: #1e4b7a; color: white; }
+        button.primary:hover { background: #0f3b5f; }
+        button:hover { background: #e6edf4; }
+        .last-update { font-size: 0.75rem; color: #5b6e8c; background: #f1f5f9; padding: 4px 12px; border-radius: 32px; }
+        .table-wrapper {
+            background: white;
+            border-radius: 24px;
+            border: 1px solid #eef2f8;
+            overflow-x: auto;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.02);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 1100px; }
+        th {
+            text-align: left;
+            padding: 14px 12px;
+            background: #fafcff;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 1px solid #e9edf2;
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover { background: #f0f4fa; }
+        td { padding: 12px 12px; border-bottom: 1px solid #f0f2f6; font-weight: 500; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background-color: #fafcff; }
+        .stock-name { font-weight: 700; color: #0f2b3d; }
+        .code { font-family: monospace; font-size: 0.8rem; color: #5f7f9e; }
+        .price-up { color: #d0312d; font-weight: 600; }
+        .price-down { color: #1f8a4c; font-weight: 600; }
+        .profit-up { color: #d0312d; font-weight: 600; }
+        .profit-down { color: #1f8a4c; font-weight: 600; }
+        .neutral { color: #6c7a91; }
+        .sub-percent { font-size: 0.7rem; opacity: 0.85; margin-top: 2px; display: block; }
+        .upload-area {
+            background: #fefce8;
+            border: 1px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sort-icon { font-size: 0.7rem; margin-left: 6px; opacity: 0.7; }
+        .footer-note { margin-top: 20px; text-align: center; font-size: 0.7rem; color: #8ba0bc; }
+        .template-link { margin-left: 15px; font-size: 0.7rem; background: #eef2ff; border-radius: 20px; padding: 2px 8px; cursor: pointer; }
+        @media (max-width: 680px) {
+            body { padding: 0; }
+            .container { padding: 16px; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .search-box input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 密码锁遮罩 -->
+    <div id="passwordOverlay" class="password-overlay">
+        <div class="password-card">
+            <h2>🔒 授权访问</h2>
+            <p>请输入密码查看股票监控数据</p>
+            <input type="password" id="passwordInput" placeholder="密码" autocomplete="off">
+            <button id="unlockBtn">验证并进入</button>
+            <div id="errorMsg" class="error-msg">密码错误，请重试</div>
+        </div>
+    </div>
 
+    <!-- 主内容（初始隐藏） -->
+    <div id="mainContent" class="main-content">
+        <div class="container">
+            <div class="header">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <h1>📊 灵活配置 · 股票监控</h1>
+                        <div class="badge">📉 实时差异百分比</div>
+                    </div>
+                    <div class="upload-area">
+                        📂 上传 Excel: 
+                        <input type="file" id="uploadExcel" accept=".xlsx, .xls" style="max-width: 160px;">
+                        <span style="color:#5f6c84;">| 默认 data.xlsx</span>
+                        <span id="downloadTemplate" class="template-link">📎 下载模板</span>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <div class="filter-area">
+                        <div class="search-box">
+                            🔍 <input type="text" id="filterInput" placeholder="名称 / 代码筛选" autocomplete="off">
+                        </div>
+                        <select id="categorySelect" class="category-filter">
+                            <option value="all">📂 全部分类</option>
+                        </select>
+                        <button id="resetFilterBtn">🗑️ 重置筛选</button>
+                    </div>
+                    <div class="refresh-ctrl">
+                        <span>⏱️ 刷新间隔</span>
+                        <select id="intervalSelect">
+                            <option value="60">1 分钟</option>
+                            <option value="300" selected>5 分钟</option>
+                            <option value="600">10 分钟</option>
+                        </select>
+                        <button id="manualRefreshBtn" class="primary">🔄 立即刷新</button>
+                        <div id="updateTimeBadge" class="last-update">⏳ 等待数据...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="stockTable">
+                    <thead id="tableHeader">
+                        <!-- 动态生成列头 -->
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr><td colspan="10" style="text-align:center; padding: 48px;">📁 正在加载 data.xlsx 或等待上传...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="footer-note">
+                ⚡ 实时行情：腾讯财经 | 入场 / 重仓下方自动显示与当前价的差异百分比（排序依据百分比）<br>
+                🔄 今日涨跌按涨跌幅百分比排序 | 支持分类筛选、名称/代码搜索、点击表头排序
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- 密码配置 ----------
+        // 请修改为您自己的密码（支持字母、数字、符号，长度建议4-20）
+        const PASSWORD = "dayuchi0315";   // <--- 在这里修改密码
+        
+        // 获取元素
+        const overlay = document.getElementById('passwordOverlay');
+        const mainContent = document.getElementById('mainContent');
+        const passwordInput = document.getElementById('passwordInput');
+        const unlockBtn = document.getElementById('unlockBtn');
+        const errorMsgDiv = document.getElementById('errorMsg');
+        
+        // 验证函数
+        function verifyPassword() {
+            const entered = passwordInput.value;
+            if (entered === PASSWORD) {
+                // 正确：隐藏遮罩，显示主内容
+                overlay.style.display = 'none';
+                mainContent.style.display = 'block';
+                // 触发股票数据加载（原有初始化逻辑）
+                if (typeof initStockApp === 'function') {
+                    initStockApp();
+                } else {
+                    // 如果脚本还未加载完成，稍等再执行
+                    console.warn('等待脚本初始化');
+                }
+                return true;
+            } else {
+                errorMsgDiv.style.display = 'block';
+                passwordInput.value = '';
+                passwordInput.focus();
+                return false;
+            }
+        }
+        
+        // 监听回车
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyPassword();
+        });
+        unlockBtn.addEventListener('click', verifyPassword);
+        
+        // ---------- 原有股票监控逻辑 (无变化, 但需将初始化改为由密码验证通过后调用) ----------
+        let masterStocks = [];
+        let columnOrder = [];
+        let filterText = '';
+        let selectedCategory = 'all';
+        let sortKey = null;
+        let sortDirection = 'asc';
+        let refreshTimer = null;
+        let refreshIntervalSec = 300;
+        let isLoading = false;
+        
+        const tbody = document.getElementById('tableBody');
+        const thead = document.getElementById('tableHeader');
+        const filterInput = document.getElementById('filterInput');
+        const resetFilterBtn = document.getElementById('resetFilterBtn');
+        const intervalSelect = document.getElementById('intervalSelect');
+        const manualRefreshBtn = document.getElementById('manualRefreshBtn');
+        const updateTimeBadge = document.getElementById('updateTimeBadge');
+        const uploadExcelInput = document.getElementById('uploadExcel');
+        const categorySelect = document.getElementById('categorySelect');
+        const downloadTemplateBtn = document.getElementById('downloadTemplate');
+        
+        const toFixed2 = (v) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(2) : '--';
+        const toFixed2Signed = (v) => {
+            if (typeof v !== 'number' || isNaN(v)) return '--';
+            return v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
+        };
+        const toPercent = (v) => {
+            if (typeof v !== 'number' || isNaN(v)) return '--';
+            return v > 0 ? `+${v.toFixed(2)}%` : `${v.toFixed(2)}%`;
+        };
+        const escapeHtml = (s) => {
+            if (s === undefined || s === null) return '';
+            return String(s).replace(/[&<>]/g, (m) => (m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'));
+        };
+        
+        function toTencentCode(raw) {
+            if (!raw) return null;
+            let code = String(raw).trim().toUpperCase();
+            if (/^(SH|SZ|HK)/.test(code)) return code;
+            if (/^\d+$/.test(code)) {
+                if (code.startsWith('6') || code.startsWith('688') || code.startsWith('689')) return 'sh' + code;
+                if (code.startsWith('0') || code.startsWith('3') || code.startsWith('002') || code.startsWith('001')) return 'sz' + code;
+                return 'sh' + code;
+            }
+            if (/^\d{5}$/.test(code) && code.startsWith('0')) return 'hk' + code.substring(1);
+            return null;
+        }
+        
+        function fetchQuotesByTencent(stocks) {
+            return new Promise((resolve, reject) => {
+                const validStocks = stocks.filter(s => s.tencentCode);
+                if (!validStocks.length) return resolve(new Map());
+                const codes = validStocks.map(s => s.tencentCode).join(',');
+                const script = document.createElement('script');
+                script.src = `https://qt.gtimg.cn/q=${codes}`;
+                script.charset = 'gb2312';
+                script.onload = () => {
+                    const quoteMap = new Map();
+                    for (let stock of validStocks) {
+                        const varName = `v_${stock.tencentCode}`;
+                        const dataStr = window[varName];
+                        if (dataStr && typeof dataStr === 'string') {
+                            const parts = dataStr.replace(/^v_[\w]+="/, '').replace(/"$/, '').split('~');
+                            if (parts.length >= 33) {
+                                const current = parseFloat(parts[3]);
+                                const prevClose = parseFloat(parts[4]);
+                                const changeVal = parseFloat(parts[31]);
+                                const changePercent = parseFloat(parts[32]);
+                                if (!isNaN(current) && current > 0) {
+                                    quoteMap.set(stock.tencentCode, {
+                                        currentPrice: current,
+                                        change: changeVal,
+                                        changePercent: changePercent,
+                                        prevClose: prevClose
+                                    });
+                                } else if (!isNaN(current) && !isNaN(prevClose)) {
+                                    const altChange = current - prevClose;
+                                    const altPercent = (altChange / prevClose) * 100;
+                                    quoteMap.set(stock.tencentCode, {
+                                        currentPrice: current,
+                                        change: altChange,
+                                        changePercent: altPercent,
+                                        prevClose: prevClose
+                                    });
+                                }
+                            }
+                        }
+                        delete window[varName];
+                    }
+                    resolve(quoteMap);
+                    document.head.removeChild(script);
+                };
+                script.onerror = (err) => {
+                    console.error('腾讯行情接口失败', err);
+                    reject(new Error('腾讯行情加载失败'));
+                    document.head.removeChild(script);
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        async function refreshQuotes() {
+            if (isLoading || !masterStocks.length) {
+                if (!masterStocks.length) updateTimeBadge.innerHTML = '⏳ 无数据，请上传';
+                return;
+            }
+            isLoading = true;
+            updateTimeBadge.innerHTML = '🔄 刷新行情中...';
+            try {
+                const quoteMap = await fetchQuotesByTencent(masterStocks);
+                for (let stock of masterStocks) {
+                    const tc = stock.tencentCode;
+                    if (tc && quoteMap.has(tc)) {
+                        const q = quoteMap.get(tc);
+                        stock.currentPrice = q.currentPrice;
+                        stock.todayChange = q.change;
+                        stock.todayChangePercent = q.changePercent;
+                    } else {
+                        stock.currentPrice = null;
+                        stock.todayChange = null;
+                        stock.todayChangePercent = null;
+                    }
+                    if (stock.currentPrice !== null && !isNaN(stock.currentPrice) && stock.currentPrice !== 0) {
+                        stock.entryPercent = ((stock.entryPrice - stock.currentPrice) / stock.currentPrice) * 100;
+                        stock.heavyPercent = ((stock.heavyPrice - stock.currentPrice) / stock.currentPrice) * 100;
+                    } else {
+                        stock.entryPercent = null;
+                        stock.heavyPercent = null;
+                    }
+                }
+                updateTimeBadge.innerHTML = `🕒 最后更新: ${new Date().toLocaleTimeString()}`;
+                filterAndSortAndRender();
+            } catch (err) {
+                console.error(err);
+                updateTimeBadge.innerHTML = `⚠️ 刷新失败 ${new Date().toLocaleTimeString()}`;
+            } finally {
+                isLoading = false;
+            }
+        }
+        
+        function buildColumnOrder(excelExtraCols) {
+            const columns = [
+                { key: 'name', title: '📄 名称', sortField: 'name' },
+                { key: 'code', title: '🆔 代码', sortField: 'code' },
+                { key: 'category', title: '🏷️ 分类', sortField: 'category' },
+                { key: 'currentPrice', title: '💰 实时', sortField: 'currentPrice' },
+                { key: 'todayChange', title: '📊 今日', sortField: 'todayChangePercent' },
+                { key: 'entryPrice', title: '🎯 入场', sortField: 'entryPercent' },
+                { key: 'heavyPrice', title: '⚖️ 重仓', sortField: 'heavyPercent' },
+                { key: 'takeProfit', title: '🏁 止盈', sortField: 'takeProfit' },
+                { key: 'remarks', title: '📝 备注', sortField: 'remarks' }
+            ];
+            for (let col of excelExtraCols) {
+                columns.push({ key: col, title: col, sortField: `extra_${col}` });
+            }
+            return columns;
+        }
+        
+        function extractStock(row, colMapping) {
+            const stock = {
+                name: row[colMapping.name] ? String(row[colMapping.name]).trim() : '',
+                rawSymbol: row[colMapping.code] ? String(row[colMapping.code]).trim().toUpperCase() : '',
+                category: colMapping.category && row[colMapping.category] ? String(row[colMapping.category]).trim() : '未分类',
+                entryPrice: parseFloat(row[colMapping.entryPrice]) || 0,
+                heavyPrice: parseFloat(row[colMapping.heavyPrice]) || 0,
+                takeProfit: parseFloat(row[colMapping.takeProfit]) || 0,
+                remarks: colMapping.remarks && row[colMapping.remarks] ? String(row[colMapping.remarks]) : '',
+                currentPrice: null,
+                todayChange: null,
+                todayChangePercent: null,
+                entryPercent: null,
+                heavyPercent: null,
+                extraFields: {}
+            };
+            for (let [key, val] of Object.entries(row)) {
+                if (!['name','code','category','entryPrice','heavyPrice','takeProfit','remarks'].includes(key)) {
+                    stock.extraFields[key] = val;
+                }
+            }
+            stock.tencentCode = toTencentCode(stock.rawSymbol);
+            if (!stock.tencentCode) console.warn(`代码转换失败: ${stock.rawSymbol}`);
+            return stock;
+        }
+        
+        function parseExcelAndLoad(dataBuffer) {
+            try {
+                const workbook = XLSX.read(dataBuffer, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+                if (!rows.length) throw new Error('Excel 无数据');
+                const firstRow = rows[0];
+                const colNames = Object.keys(firstRow);
+                const findCol = (keywords) => {
+                    for (let key of colNames) {
+                        const lower = key.toLowerCase();
+                        for (let kw of keywords) if (lower.includes(kw)) return key;
+                    }
+                    return null;
+                };
+                const nameCol = findCol(['名称', 'name', '股票名称']);
+                const codeCol = findCol(['代码', 'code', '股票代码']);
+                const categoryCol = findCol(['分类', 'category']);
+                const entryCol = findCol(['入场', '成本', 'entry']);
+                const heavyCol = findCol(['重仓', 'heavy']);
+                const takeProfitCol = findCol(['止盈', 'takeprofit']);
+                const remarksCol = findCol(['备注', 'remark']);
+                if (!nameCol || !codeCol) throw new Error('未找到「名称」或「代码」列');
+                const colMapping = {
+                    name: nameCol, code: codeCol, category: categoryCol,
+                    entryPrice: entryCol, heavyPrice: heavyCol, takeProfit: takeProfitCol, remarks: remarksCol
+                };
+                const newStocks = [];
+                for (let row of rows) {
+                    if (!row[nameCol] || !row[codeCol]) continue;
+                    const stock = extractStock(row, colMapping);
+                    if (stock.rawSymbol && stock.name) newStocks.push(stock);
+                }
+                if (!newStocks.length) throw new Error('有效股票数为0');
+                masterStocks = newStocks;
+                const baseKeys = ['名称', 'name', '股票名称', '代码', 'code', '股票代码', '分类', 'category', '入场', '成本', 'entry', '重仓', 'heavy', '止盈', 'takeprofit', '备注', 'remark'];
+                const extraCols = colNames.filter(c => !baseKeys.some(b => c.toLowerCase().includes(b)));
+                const displayColumns = buildColumnOrder(extraCols);
+                window.displayColumns = displayColumns;
+                renderTableHeader(displayColumns);
+                updateCategoryFilter();
+                filterText = '';
+                selectedCategory = 'all';
+                filterInput.value = '';
+                categorySelect.value = 'all';
+                sortKey = null;
+                sortDirection = 'asc';
+                filterAndSortAndRender();
+                if (refreshTimer) clearInterval(refreshTimer);
+                startAutoRefresh();
+                refreshQuotes();
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
+            }
+        }
+        
+        function renderTableHeader(columns) {
+            let html = '<tr>';
+            for (let col of columns) {
+                let dataSort = col.sortField || col.key;
+                html += `<th data-sort="${dataSort}">${col.title} <span class="sort-icon">↕️</span></th>`;
+            }
+            html += '</tr>';
+            thead.innerHTML = html;
+            attachSortEvents();
+        }
+        
+        function renderTable(stocks, columns) {
+            if (!stocks.length) {
+                tbody.innerHTML = `<td><td colspan="${columns.length}" style="text-align:center; padding: 40px;">📭 无匹配股票，请调整筛选</td></tr>`;
+                return;
+            }
+            let html = '';
+            for (let s of stocks) {
+                html += '<tr>';
+                for (let col of columns) {
+                    let cellValue = '';
+                    let cellClass = '';
+                    if (col.key === 'name') cellValue = escapeHtml(s.name);
+                    else if (col.key === 'code') cellValue = escapeHtml(s.rawSymbol);
+                    else if (col.key === 'category') cellValue = escapeHtml(s.category);
+                    else if (col.key === 'currentPrice') {
+                        const cur = s.currentPrice;
+                        cellValue = cur !== null ? cur.toFixed(2) : '--';
+                        if (s.todayChange !== null) cellClass = s.todayChange >= 0 ? 'price-up' : 'price-down';
+                    }
+                    else if (col.key === 'todayChange') {
+                        const change = s.todayChange;
+                        const percent = s.todayChangePercent;
+                        if (change !== null && percent !== null) {
+                            cellValue = `${toFixed2Signed(change)}<span class="sub-percent">${toPercent(percent)}</span>`;
+                            cellClass = change >= 0 ? 'price-up' : 'price-down';
+                        } else cellValue = '--';
+                    }
+                    else if (col.key === 'entryPrice') {
+                        const price = s.entryPrice;
+                        const percent = s.entryPercent;
+                        cellValue = `${toFixed2(price)}`;
+                        if (percent !== null && !isNaN(percent)) {
+                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'price-up' : 'price-down'}">${toPercent(percent)}</span>`;
+                        } else {
+                            cellValue += `<span class="sub-percent">--</span>`;
+                        }
+                    }
+                    else if (col.key === 'heavyPrice') {
+                        const price = s.heavyPrice;
+                        const percent = s.heavyPercent;
+                        cellValue = `${toFixed2(price)}`;
+                        if (percent !== null && !isNaN(percent)) {
+                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'price-up' : 'price-down'}">${toPercent(percent)}</span>`;
+                        } else {
+                            cellValue += `<span class="sub-percent">--</span>`;
+                        }
+                    }
+                    else if (col.key === 'takeProfit') cellValue = toFixed2(s.takeProfit);
+                    else if (col.key === 'remarks') cellValue = escapeHtml(s.remarks);
+                    else {
+                        cellValue = escapeHtml(s.extraFields[col.key] !== undefined ? s.extraFields[col.key] : '');
+                    }
+                    html += `<td class="${cellClass}">${cellValue}</td>`;
+                }
+                html += '</tr>';
+            }
+            tbody.innerHTML = html;
+        }
+        
+        function filterAndSortAndRender() {
+            if (!masterStocks.length || !window.displayColumns) return;
+            let filtered = [...masterStocks];
+            if (filterText.trim()) {
+                const kw = filterText.trim().toLowerCase();
+                filtered = filtered.filter(s => s.name.toLowerCase().includes(kw) || s.rawSymbol.toLowerCase().includes(kw));
+            }
+            if (selectedCategory !== 'all') {
+                filtered = filtered.filter(s => s.category === selectedCategory);
+            }
+            if (sortKey) {
+                filtered.sort((a, b) => {
+                    let aVal, bVal;
+                    switch(sortKey) {
+                        case 'name': aVal = a.name || ''; bVal = b.name || ''; break;
+                        case 'code': aVal = a.rawSymbol || ''; bVal = b.rawSymbol || ''; break;
+                        case 'category': aVal = a.category || ''; bVal = b.category || ''; break;
+                        case 'currentPrice': aVal = a.currentPrice ?? -Infinity; bVal = b.currentPrice ?? -Infinity; break;
+                        case 'todayChangePercent': aVal = a.todayChangePercent ?? -Infinity; bVal = b.todayChangePercent ?? -Infinity; break;
+                        case 'entryPercent': aVal = a.entryPercent ?? -Infinity; bVal = b.entryPercent ?? -Infinity; break;
+                        case 'heavyPercent': aVal = a.heavyPercent ?? -Infinity; bVal = b.heavyPercent ?? -Infinity; break;
+                        case 'takeProfit': aVal = a.takeProfit ?? -Infinity; bVal = b.takeProfit ?? -Infinity; break;
+                        case 'remarks': aVal = a.remarks || ''; bVal = b.remarks || ''; break;
+                        default:
+                            if (sortKey.startsWith('extra_')) {
+                                const colKey = sortKey.replace('extra_', '');
+                                aVal = a.extraFields[colKey] ?? '';
+                                bVal = b.extraFields[colKey] ?? '';
+                            } else { aVal = 0; bVal = 0; }
+                            break;
+                    }
+                    if (aVal === bVal) return 0;
+                    if (sortDirection === 'asc') return aVal > bVal ? 1 : -1;
+                    else return aVal < bVal ? 1 : -1;
+                });
+            }
+            renderTable(filtered, window.displayColumns);
+        }
+        
+        function updateCategoryFilter() {
+            const categories = new Set();
+            categories.add('all');
+            for (let s of masterStocks) {
+                if (s.category) categories.add(s.category);
+            }
+            let options = '';
+            for (let c of categories) {
+                if (c === 'all') options += `<option value="all">📂 全部分类</option>`;
+                else options += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+            }
+            categorySelect.innerHTML = options;
+            categorySelect.value = selectedCategory;
+        }
+        
+        function attachSortEvents() {
+            const ths = document.querySelectorAll('#stockTable th');
+            ths.forEach(th => {
+                const attr = th.getAttribute('data-sort');
+                if (!attr) return;
+                th.removeEventListener('click', th.clickHandler);
+                const handler = () => {
+                    if (sortKey === attr) sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    else { sortKey = attr; sortDirection = 'asc'; }
+                    filterAndSortAndRender();
+                    updateSortIcons();
+                };
+                th.addEventListener('click', handler);
+                th.clickHandler = handler;
+            });
+        }
+        
+        function updateSortIcons() {
+            const ths = document.querySelectorAll('#stockTable th');
+            ths.forEach(th => {
+                const attr = th.getAttribute('data-sort');
+                const icon = th.querySelector('.sort-icon');
+                if (icon) {
+                    if (sortKey === attr) icon.innerHTML = sortDirection === 'asc' ? ' ↑' : ' ↓';
+                    else icon.innerHTML = ' ↕️';
+                }
+            });
+        }
+        
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            if (!masterStocks.length) return;
+            refreshTimer = setInterval(() => {
+                if (masterStocks.length) refreshQuotes();
+            }, refreshIntervalSec * 1000);
+        }
+        
+        function changeInterval(sec) {
+            refreshIntervalSec = sec;
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                startAutoRefresh();
+            }
+        }
+        
+        function downloadTemplate() {
+            const templateData = [
+                { "名称": "招商银行", "代码": "600036", "分类": "银行", "入场": 30.5, "重仓": 32.0, "止盈": 40.0, "备注": "长期持有" },
+                { "名称": "宁德时代", "代码": "300750", "分类": "新能源", "入场": 180.0, "重仓": 175.0, "止盈": 220.0, "备注": "" }
+            ];
+            const ws = XLSX.utils.json_to_sheet(templateData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "股票持仓");
+            XLSX.writeFile(wb, "data.xlsx");
+        }
+        
+        async function loadDefaultExcel() {
+            try {
+                const res = await fetch('./data.xlsx');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const buffer = await res.arrayBuffer();
+                parseExcelAndLoad(buffer);
+            } catch (err) {
+                console.warn('未找到 data.xlsx，请手动上传', err);
+                masterStocks = [];
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 48px;">📂 未找到 data.xlsx，请通过上方按钮上传 Excel 文件</td></tr>';
+                if (refreshTimer) clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        }
+        
+        function bindUI() {
+            filterInput.addEventListener('input', (e) => { filterText = e.target.value; filterAndSortAndRender(); });
+            resetFilterBtn.addEventListener('click', () => { filterText = ''; filterInput.value = ''; filterAndSortAndRender(); });
+            manualRefreshBtn.addEventListener('click', () => { if (masterStocks.length) refreshQuotes(); else loadDefaultExcel(); });
+            intervalSelect.addEventListener('change', (e) => changeInterval(parseInt(e.target.value, 10)));
+            uploadExcelInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => parseExcelAndLoad(evt.target.result);
+                reader.readAsArrayBuffer(file);
+                uploadExcelInput.value = '';
+            });
+            downloadTemplateBtn.addEventListener('click', downloadTemplate);
+            categorySelect.addEventListener('change', (e) => { selectedCategory = e.target.value; filterAndSortAndRender(); });
+        }
+        
+        // 将原本的 init 改为外部可调用的函数
+        window.initStockApp = function() {
+            bindUI();
+            loadDefaultExcel().then(() => {
+                if (masterStocks.length) {
+                    startAutoRefresh();
+                    refreshQuotes();
+                }
+            }).catch(e => console.warn(e));
+        };
+        
+        // 如果密码正确，会调用 initStockApp；如果不需要密码验证（覆盖原逻辑），则直接执行
+        // 但为了防止未验证就自动加载，我们不在这里自动调用，等待密码验证后由 unlock 调用
+        // 注意：有可能脚本加载完用户还未输密码，此时不加载数据。密码验证后调用 initStockApp。
+        // 为了确保密码框的显示优先，把自动加载的调用移除。
+        // 原有立即执行 init 的逻辑已删除，全部交给密码验证按钮。
+    </script>
+</body>
+</html>
