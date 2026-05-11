@@ -13,7 +13,6 @@
             background: #f5f7fb;
             color: #1e293b;
         }
-        /* 密码锁遮罩 */
         .password-overlay {
             position: fixed;
             top: 0;
@@ -62,7 +61,6 @@
             border: 1px solid #cbd5e1;
             border-radius: 60px;
             outline: none;
-            transition: all 0.2s;
             font-family: monospace;
             letter-spacing: 1px;
             margin-bottom: 16px;
@@ -106,11 +104,9 @@
             margin-top: 12px;
             display: none;
         }
-        /* 主内容初始隐藏 */
         .main-content {
             display: none;
         }
-        /* 原有样式 */
         .container { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
         .header {
             background: white;
@@ -226,6 +222,30 @@
         .sort-icon { font-size: 0.7rem; margin-left: 6px; opacity: 0.7; }
         .footer-note { margin-top: 20px; text-align: center; font-size: 0.7rem; color: #8ba0bc; }
         .template-link { margin-left: 15px; font-size: 0.7rem; background: #eef2ff; border-radius: 20px; padding: 2px 8px; cursor: pointer; }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            z-index: 1100;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .error-banner {
+            background: #fee2e2;
+            border-left: 4px solid #d0312d;
+            padding: 12px;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #b91c1c;
+        }
         @media (max-width: 680px) {
             body { padding: 0; }
             .container { padding: 16px; }
@@ -235,7 +255,6 @@
     </style>
 </head>
 <body>
-    <!-- 密码锁遮罩 -->
     <div id="passwordOverlay" class="password-overlay">
         <div class="password-card">
             <h2>🔒 授权访问</h2>
@@ -250,8 +269,6 @@
             <div id="errorMsg" class="error-msg">密码错误，请重试</div>
         </div>
     </div>
-
-    <!-- 主内容 -->
     <div id="mainContent" class="main-content">
         <div class="container">
             <div class="header">
@@ -289,6 +306,7 @@
                     </div>
                 </div>
             </div>
+            <div id="tableError" class="error-banner" style="display: none;"></div>
             <div class="table-wrapper">
                 <table id="stockTable">
                     <thead id="tableHeader"></thead>
@@ -301,10 +319,10 @@
             </div>
         </div>
     </div>
+    <div id="toast" class="toast"></div>
 
     <script>
-        // ---------- 密码配置 ----------
-        const PASSWORD = "dayuchi0315";   // 修改成你自己的密码
+        const PASSWORD = "dayuchi0315";
         const STORAGE_KEY = "stock_monitor_auth";
         const EXPIRE_DAYS = 7;
 
@@ -317,7 +335,6 @@
                 else { localStorage.removeItem(STORAGE_KEY); return false; }
             } catch(e) { return false; }
         }
-
         function saveRemember(remember) {
             if (remember) {
                 const expireTime = Date.now() + EXPIRE_DAYS * 24 * 60 * 60 * 1000;
@@ -326,13 +343,11 @@
                 localStorage.removeItem(STORAGE_KEY);
             }
         }
-
         function unlockApp() {
             document.getElementById('passwordOverlay').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
             if (typeof initStockApp === 'function') initStockApp();
         }
-
         function verifyPassword(remember) {
             const entered = document.getElementById('passwordInput').value;
             if (entered === PASSWORD) {
@@ -340,30 +355,21 @@
                 unlockApp();
                 return true;
             } else {
-                const errorMsg = document.getElementById('errorMsg');
-                errorMsg.style.display = 'block';
+                document.getElementById('errorMsg').style.display = 'block';
                 document.getElementById('passwordInput').value = '';
                 document.getElementById('passwordInput').focus();
                 return false;
             }
         }
-
-        if (isRemembered()) {
-            unlockApp();
-        } else {
-            document.getElementById('unlockBtn').onclick = () => {
-                const remember = document.getElementById('rememberCheckbox').checked;
-                verifyPassword(remember);
-            };
+        if (isRemembered()) unlockApp();
+        else {
+            document.getElementById('unlockBtn').onclick = () => verifyPassword(document.getElementById('rememberCheckbox').checked);
             document.getElementById('passwordInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    const remember = document.getElementById('rememberCheckbox').checked;
-                    verifyPassword(remember);
-                }
+                if (e.key === 'Enter') verifyPassword(document.getElementById('rememberCheckbox').checked);
             });
         }
 
-        // ---------- 股票监控核心 ----------
+        // 股票监控核心
         let masterStocks = [];
         let filterText = '';
         let selectedCategory = 'all';
@@ -383,6 +389,20 @@
         const uploadExcelInput = document.getElementById('uploadExcel');
         const categorySelect = document.getElementById('categorySelect');
         const downloadTemplateBtn = document.getElementById('downloadTemplate');
+        const tableErrorDiv = document.getElementById('tableError');
+        const toast = document.getElementById('toast');
+
+        function showToast(msg, duration = 2000) {
+            toast.innerText = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => { toast.style.opacity = '0'; }, duration);
+        }
+
+        function showError(msg) {
+            tableErrorDiv.style.display = 'block';
+            tableErrorDiv.innerHTML = `⚠️ ${escapeHtml(msg)}`;
+            setTimeout(() => { if (tableErrorDiv) tableErrorDiv.style.display = 'none'; }, 5000);
+        }
 
         const toFixed2 = (v) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(2) : '--';
         const toFixed2Signed = (v) => {
@@ -432,21 +452,11 @@
                                 const changeVal = parseFloat(parts[31]);
                                 const changePercent = parseFloat(parts[32]);
                                 if (!isNaN(current) && current > 0) {
-                                    quoteMap.set(stock.tencentCode, {
-                                        currentPrice: current,
-                                        change: changeVal,
-                                        changePercent: changePercent,
-                                        prevClose: prevClose
-                                    });
+                                    quoteMap.set(stock.tencentCode, { currentPrice: current, change: changeVal, changePercent: changePercent, prevClose });
                                 } else if (!isNaN(current) && !isNaN(prevClose)) {
                                     const altChange = current - prevClose;
                                     const altPercent = (altChange / prevClose) * 100;
-                                    quoteMap.set(stock.tencentCode, {
-                                        currentPrice: current,
-                                        change: altChange,
-                                        changePercent: altPercent,
-                                        prevClose: prevClose
-                                    });
+                                    quoteMap.set(stock.tencentCode, { currentPrice: current, change: altChange, changePercent: altPercent, prevClose });
                                 }
                             }
                         }
@@ -456,7 +466,7 @@
                     document.head.removeChild(script);
                 };
                 script.onerror = (err) => {
-                    console.error('腾讯行情接口失败', err);
+                    console.error(err);
                     reject(new Error('腾讯行情加载失败'));
                     document.head.removeChild(script);
                 };
@@ -485,18 +495,9 @@
                         stock.todayChange = null;
                         stock.todayChangePercent = null;
                     }
-                    // 正确计算盈亏百分比: (当前价 - 成本)/成本 * 100
                     if (stock.currentPrice !== null && !isNaN(stock.currentPrice)) {
-                        if (stock.entryPrice !== 0 && !isNaN(stock.entryPrice)) {
-                            stock.entryPercent = ((stock.currentPrice - stock.entryPrice) / stock.entryPrice) * 100;
-                        } else {
-                            stock.entryPercent = null;
-                        }
-                        if (stock.heavyPrice !== 0 && !isNaN(stock.heavyPrice)) {
-                            stock.heavyPercent = ((stock.currentPrice - stock.heavyPrice) / stock.heavyPrice) * 100;
-                        } else {
-                            stock.heavyPercent = null;
-                        }
+                        stock.entryPercent = (stock.entryPrice !== 0) ? ((stock.currentPrice - stock.entryPrice) / stock.entryPrice) * 100 : null;
+                        stock.heavyPercent = (stock.heavyPrice !== 0) ? ((stock.currentPrice - stock.heavyPrice) / stock.heavyPrice) * 100 : null;
                     } else {
                         stock.entryPercent = null;
                         stock.heavyPercent = null;
@@ -507,11 +508,13 @@
             } catch (err) {
                 console.error(err);
                 updateTimeBadge.innerHTML = `⚠️ 刷新失败 ${new Date().toLocaleTimeString()}`;
+                showError('行情刷新失败，请检查网络');
             } finally {
                 isLoading = false;
             }
         }
 
+        // 构建显示列（入场/重仓/止盈/备注 + 额外列）
         function buildColumnOrder(excelExtraCols) {
             const columns = [
                 { key: 'name', title: '📄 名称', sortField: 'name' },
@@ -530,6 +533,7 @@
             return columns;
         }
 
+        // 提取单只股票（增强列名匹配）
         function extractStock(row, colMapping) {
             const stock = {
                 name: row[colMapping.name] ? String(row[colMapping.name]).trim() : '',
@@ -539,12 +543,8 @@
                 heavyPrice: parseFloat(row[colMapping.heavyPrice]) || 0,
                 takeProfit: parseFloat(row[colMapping.takeProfit]) || 0,
                 remarks: colMapping.remarks && row[colMapping.remarks] ? String(row[colMapping.remarks]) : '',
-                currentPrice: null,
-                todayChange: null,
-                todayChangePercent: null,
-                entryPercent: null,
-                heavyPercent: null,
-                extraFields: {}
+                currentPrice: null, todayChange: null, todayChangePercent: null,
+                entryPercent: null, heavyPercent: null, extraFields: {}
             };
             for (let [key, val] of Object.entries(row)) {
                 if (!['name','code','category','entryPrice','heavyPrice','takeProfit','remarks'].includes(key)) {
@@ -552,22 +552,25 @@
                 }
             }
             stock.tencentCode = toTencentCode(stock.rawSymbol);
-            if (!stock.tencentCode) console.warn(`代码转换失败: ${stock.rawSymbol}`);
             return stock;
         }
 
+        // 解析并加载Excel
         function parseExcelAndLoad(dataBuffer) {
             try {
                 const workbook = XLSX.read(dataBuffer, { type: 'array' });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-                if (!rows.length) throw new Error('Excel 无数据');
+                if (!rows.length) throw new Error('Excel 无数据行');
                 const firstRow = rows[0];
                 const colNames = Object.keys(firstRow);
+                // 更健壮的列匹配（忽略前后空格，不区分大小写）
                 const findCol = (keywords) => {
                     for (let key of colNames) {
-                        const lower = key.toLowerCase();
-                        for (let kw of keywords) if (lower.includes(kw)) return key;
+                        const cleanKey = key.trim().toLowerCase();
+                        for (let kw of keywords) {
+                            if (cleanKey === kw.toLowerCase() || cleanKey.includes(kw.toLowerCase())) return key;
+                        }
                     }
                     return null;
                 };
@@ -578,7 +581,7 @@
                 const heavyCol = findCol(['重仓', 'heavy']);
                 const takeProfitCol = findCol(['止盈', 'takeprofit']);
                 const remarksCol = findCol(['备注', 'remark']);
-                if (!nameCol || !codeCol) throw new Error('未找到「名称」或「代码」列');
+                if (!nameCol || !codeCol) throw new Error('未找到「名称」或「代码」列，请检查Excel第一行列名');
                 const colMapping = {
                     name: nameCol, code: codeCol, category: categoryCol,
                     entryPrice: entryCol, heavyPrice: heavyCol, takeProfit: takeProfitCol, remarks: remarksCol
@@ -589,27 +592,29 @@
                     const stock = extractStock(row, colMapping);
                     if (stock.rawSymbol && stock.name) newStocks.push(stock);
                 }
-                if (!newStocks.length) throw new Error('有效股票数为0');
+                if (!newStocks.length) throw new Error('有效股票数为0，请确保代码列包含正确的股票代码（如600036）');
                 masterStocks = newStocks;
-                const baseKeys = ['名称', 'name', '股票名称', '代码', 'code', '股票代码', '分类', 'category', '入场', '成本', 'entry', '重仓', 'heavy', '止盈', 'takeprofit', '备注', 'remark'];
-                const extraCols = colNames.filter(c => !baseKeys.some(b => c.toLowerCase().includes(b)));
+                // 计算额外列（不在基础列中的列）
+                const baseKeywords = ['名称','name','股票名称','代码','code','股票代码','分类','category','入场','成本','entry','重仓','heavy','止盈','takeprofit','备注','remark'];
+                const extraCols = colNames.filter(c => !baseKeywords.some(kw => c.trim().toLowerCase().includes(kw.toLowerCase())));
                 const displayColumns = buildColumnOrder(extraCols);
                 window.displayColumns = displayColumns;
                 renderTableHeader(displayColumns);
                 updateCategoryFilter();
-                filterText = '';
-                selectedCategory = 'all';
-                filterInput.value = '';
-                categorySelect.value = 'all';
-                sortKey = null;
-                sortDirection = 'asc';
+                // 重置筛选
+                filterText = ''; selectedCategory = 'all';
+                filterInput.value = ''; categorySelect.value = 'all';
+                sortKey = null; sortDirection = 'asc';
                 filterAndSortAndRender();
                 if (refreshTimer) clearInterval(refreshTimer);
                 startAutoRefresh();
                 refreshQuotes();
+                tableErrorDiv.style.display = 'none';
+                showToast(`✅ 成功加载 ${newStocks.length} 只股票`);
             } catch (err) {
                 console.error(err);
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
+                showError(`解析失败: ${err.message}`);
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:#b91c1c;">❌ ${escapeHtml(err.message)}<br>请确认Excel包含「名称」「代码」列，其他列可选</td></tr>`;
             }
         }
 
@@ -633,8 +638,7 @@
             for (let s of stocks) {
                 html += '<tr>';
                 for (let col of columns) {
-                    let cellValue = '';
-                    let cellClass = '';
+                    let cellValue = '', cellClass = '';
                     if (col.key === 'name') cellValue = escapeHtml(s.name);
                     else if (col.key === 'code') cellValue = escapeHtml(s.rawSymbol);
                     else if (col.key === 'category') cellValue = escapeHtml(s.category);
@@ -644,34 +648,23 @@
                         if (s.todayChange !== null) cellClass = s.todayChange >= 0 ? 'price-up' : 'price-down';
                     }
                     else if (col.key === 'todayChange') {
-                        const change = s.todayChange;
-                        const percent = s.todayChangePercent;
+                        const change = s.todayChange, percent = s.todayChangePercent;
                         if (change !== null && percent !== null) {
                             cellValue = `${toFixed2Signed(change)}<span class="sub-percent">${toPercent(percent)}</span>`;
                             cellClass = change >= 0 ? 'price-up' : 'price-down';
                         } else cellValue = '--';
                     }
                     else if (col.key === 'entryPrice') {
-                        const price = s.entryPrice;
-                        const percent = s.entryPercent;
-                        cellValue = `${toFixed2(price)}`;
-                        if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
-                        } else {
-                            cellValue += `<span class="sub-percent">--</span>`;
-                        }
-                        // 入场列不标红绿，无 cellClass
+                        cellValue = `${toFixed2(s.entryPrice)}`;
+                        if (s.entryPercent !== null && !isNaN(s.entryPercent))
+                            cellValue += `<span class="sub-percent">${toPercent(s.entryPercent)}</span>`;
+                        else cellValue += `<span class="sub-percent">--</span>`;
                     }
                     else if (col.key === 'heavyPrice') {
-                        const price = s.heavyPrice;
-                        const percent = s.heavyPercent;
-                        cellValue = `${toFixed2(price)}`;
-                        if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
-                        } else {
-                            cellValue += `<span class="sub-percent">--</span>`;
-                        }
-                        // 重仓列不标红绿
+                        cellValue = `${toFixed2(s.heavyPrice)}`;
+                        if (s.heavyPercent !== null && !isNaN(s.heavyPercent))
+                            cellValue += `<span class="sub-percent">${toPercent(s.heavyPercent)}</span>`;
+                        else cellValue += `<span class="sub-percent">--</span>`;
                     }
                     else if (col.key === 'takeProfit') cellValue = toFixed2(s.takeProfit);
                     else if (col.key === 'remarks') cellValue = escapeHtml(s.remarks);
@@ -692,9 +685,8 @@
                 const kw = filterText.trim().toLowerCase();
                 filtered = filtered.filter(s => s.name.toLowerCase().includes(kw) || s.rawSymbol.toLowerCase().includes(kw));
             }
-            if (selectedCategory !== 'all') {
+            if (selectedCategory !== 'all')
                 filtered = filtered.filter(s => s.category === selectedCategory);
-            }
             if (sortKey) {
                 filtered.sort((a, b) => {
                     let aVal, bVal;
@@ -711,8 +703,7 @@
                         default:
                             if (sortKey.startsWith('extra_')) {
                                 const colKey = sortKey.replace('extra_', '');
-                                aVal = a.extraFields[colKey] ?? '';
-                                bVal = b.extraFields[colKey] ?? '';
+                                aVal = a.extraFields[colKey] ?? ''; bVal = b.extraFields[colKey] ?? '';
                             } else { aVal = 0; bVal = 0; }
                             break;
                     }
@@ -725,11 +716,8 @@
         }
 
         function updateCategoryFilter() {
-            const categories = new Set();
-            categories.add('all');
-            for (let s of masterStocks) {
-                if (s.category) categories.add(s.category);
-            }
+            const categories = new Set(['all']);
+            for (let s of masterStocks) if (s.category) categories.add(s.category);
             let options = '';
             for (let c of categories) {
                 if (c === 'all') options += `<option value="all">📂 全部分类</option>`;
@@ -771,25 +759,19 @@
         function startAutoRefresh() {
             if (refreshTimer) clearInterval(refreshTimer);
             if (!masterStocks.length) return;
-            refreshTimer = setInterval(() => {
-                if (masterStocks.length) refreshQuotes();
-            }, refreshIntervalSec * 1000);
+            refreshTimer = setInterval(() => { if (masterStocks.length) refreshQuotes(); }, refreshIntervalSec * 1000);
         }
 
         function changeInterval(sec) {
             refreshIntervalSec = sec;
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-                startAutoRefresh();
-            }
+            if (refreshTimer) { clearInterval(refreshTimer); startAutoRefresh(); }
         }
 
         function downloadTemplate() {
-            const templateData = [
+            const ws = XLSX.utils.json_to_sheet([
                 { "名称": "招商银行", "代码": "600036", "分类": "银行", "入场": 30.5, "重仓": 32.0, "止盈": 40.0, "备注": "长期持有" },
                 { "名称": "宁德时代", "代码": "300750", "分类": "新能源", "入场": 180.0, "重仓": 175.0, "止盈": 220.0, "备注": "" }
-            ];
-            const ws = XLSX.utils.json_to_sheet(templateData);
+            ]);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "股票持仓");
             XLSX.writeFile(wb, "data.xlsx");
@@ -804,7 +786,7 @@
             } catch (err) {
                 console.warn('未找到 data.xlsx，请手动上传', err);
                 masterStocks = [];
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 48px;">📂 请通过上方按钮上传 Excel 文件</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 48px;">📂 请通过上方按钮上传 Excel 文件<br>（需包含：名称、代码、入场、重仓等列）</td></tr>';
                 if (refreshTimer) clearInterval(refreshTimer);
                 refreshTimer = null;
             }
@@ -822,6 +804,7 @@
                 reader.onload = (evt) => parseExcelAndLoad(evt.target.result);
                 reader.readAsArrayBuffer(file);
                 uploadExcelInput.value = '';
+                showToast('📂 正在解析 Excel ...');
             });
             downloadTemplateBtn.addEventListener('click', downloadTemplate);
             categorySelect.addEventListener('change', (e) => { selectedCategory = e.target.value; filterAndSortAndRender(); });
@@ -830,10 +813,7 @@
         window.initStockApp = function() {
             bindUI();
             loadDefaultExcel().then(() => {
-                if (masterStocks.length) {
-                    startAutoRefresh();
-                    refreshQuotes();
-                }
+                if (masterStocks.length) { startAutoRefresh(); refreshQuotes(); }
             }).catch(e => console.warn(e));
         };
     </script>
