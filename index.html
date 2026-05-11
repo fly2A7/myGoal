@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>📈 股票监控</title>
+    <title>📈 股票监控 · 密码保护</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -13,7 +13,7 @@
             background: #f5f7fb;
             color: #1e293b;
         }
-        /* ---------- 密码锁遮罩 ---------- */
+        /* 密码锁遮罩 */
         .password-overlay {
             position: fixed;
             top: 0;
@@ -52,7 +52,7 @@
         }
         .password-card p {
             color: #5b6e8c;
-            margin-bottom: 28px;
+            margin-bottom: 20px;
             font-size: 0.9rem;
         }
         .password-card input {
@@ -65,11 +65,25 @@
             transition: all 0.2s;
             font-family: monospace;
             letter-spacing: 1px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         .password-card input:focus {
             border-color: #1e4b7a;
             box-shadow: 0 0 0 3px rgba(30,75,122,0.2);
+        }
+        .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+        }
+        .remember-row label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: #4b5563;
         }
         .password-card button {
             background: #1e4b7a;
@@ -96,7 +110,7 @@
         .main-content {
             display: none;
         }
-        /* 主内容原有样式 */
+        /* 原有样式 */
         .container { max-width: 1500px; margin: 0 auto; padding: 24px 20px; }
         .header {
             background: white;
@@ -198,9 +212,6 @@
         .code { font-family: monospace; font-size: 0.8rem; color: #5f7f9e; }
         .price-up { color: #d0312d; font-weight: 600; }
         .price-down { color: #1f8a4c; font-weight: 600; }
-        .profit-up { color: #d0312d; font-weight: 600; }
-        .profit-down { color: #1f8a4c; font-weight: 600; }
-        .neutral { color: #6c7a91; }
         .sub-percent { font-size: 0.7rem; opacity: 0.85; margin-top: 2px; display: block; }
         .upload-area {
             background: #fefce8;
@@ -230,12 +241,17 @@
             <h2>🔒 授权访问</h2>
             <p>请输入密码查看股票监控数据</p>
             <input type="password" id="passwordInput" placeholder="密码" autocomplete="off">
+            <div class="remember-row">
+                <label>
+                    <input type="checkbox" id="rememberCheckbox"> 记住我（7天内免登录）
+                </label>
+            </div>
             <button id="unlockBtn">验证并进入</button>
             <div id="errorMsg" class="error-msg">密码错误，请重试</div>
         </div>
     </div>
 
-    <!-- 主内容（初始隐藏） -->
+    <!-- 主内容 -->
     <div id="mainContent" class="main-content">
         <div class="container">
             <div class="header">
@@ -275,16 +291,12 @@
             </div>
             <div class="table-wrapper">
                 <table id="stockTable">
-                    <thead id="tableHeader">
-                        <!-- 动态生成列头 -->
-                    </thead>
-                    <tbody id="tableBody">
-                        <tr><td colspan="10" style="text-align:center; padding: 48px;">📁 正在加载 data.xlsx 或等待上传...</td></tr>
-                    </tbody>
+                    <thead id="tableHeader"></thead>
+                    <tbody id="tableBody"><tr><td colspan="10">📁 正在加载 data.xlsx ...</td></tr></tbody>
                 </table>
             </div>
             <div class="footer-note">
-                ⚡ 实时行情：腾讯财经 | 入场 / 重仓下方自动显示与当前价的差异百分比（排序依据百分比）<br>
+                ⚡ 实时行情：腾讯财经 | 入场/重仓百分比 = (当前价 - 成本)/成本（正盈利，负亏损）<br>
                 🔄 今日涨跌按涨跌幅百分比排序 | 支持分类筛选、名称/代码搜索、点击表头排序
             </div>
         </div>
@@ -292,48 +304,67 @@
 
     <script>
         // ---------- 密码配置 ----------
-        // 请修改为您自己的密码（支持字母、数字、符号，长度建议4-20）
-        const PASSWORD = "dayuchi0315";   // <--- 在这里修改密码
-        
-        // 获取元素
-        const overlay = document.getElementById('passwordOverlay');
-        const mainContent = document.getElementById('mainContent');
-        const passwordInput = document.getElementById('passwordInput');
-        const unlockBtn = document.getElementById('unlockBtn');
-        const errorMsgDiv = document.getElementById('errorMsg');
-        
-        // 验证函数
-        function verifyPassword() {
-            const entered = passwordInput.value;
+        const PASSWORD = "dayuchi0315";   // 修改成你自己的密码
+        const STORAGE_KEY = "stock_monitor_auth";
+        const EXPIRE_DAYS = 7;
+
+        function isRemembered() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) return false;
+            try {
+                const data = JSON.parse(stored);
+                if (data.expire && Date.now() < data.expire) return true;
+                else { localStorage.removeItem(STORAGE_KEY); return false; }
+            } catch(e) { return false; }
+        }
+
+        function saveRemember(remember) {
+            if (remember) {
+                const expireTime = Date.now() + EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ expire: expireTime }));
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+
+        function unlockApp() {
+            document.getElementById('passwordOverlay').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            if (typeof initStockApp === 'function') initStockApp();
+        }
+
+        function verifyPassword(remember) {
+            const entered = document.getElementById('passwordInput').value;
             if (entered === PASSWORD) {
-                // 正确：隐藏遮罩，显示主内容
-                overlay.style.display = 'none';
-                mainContent.style.display = 'block';
-                // 触发股票数据加载（原有初始化逻辑）
-                if (typeof initStockApp === 'function') {
-                    initStockApp();
-                } else {
-                    // 如果脚本还未加载完成，稍等再执行
-                    console.warn('等待脚本初始化');
-                }
+                saveRemember(remember);
+                unlockApp();
                 return true;
             } else {
-                errorMsgDiv.style.display = 'block';
-                passwordInput.value = '';
-                passwordInput.focus();
+                const errorMsg = document.getElementById('errorMsg');
+                errorMsg.style.display = 'block';
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('passwordInput').focus();
                 return false;
             }
         }
-        
-        // 监听回车
-        passwordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') verifyPassword();
-        });
-        unlockBtn.addEventListener('click', verifyPassword);
-        
-        // ---------- 原有股票监控逻辑 (无变化, 但需将初始化改为由密码验证通过后调用) ----------
+
+        if (isRemembered()) {
+            unlockApp();
+        } else {
+            document.getElementById('unlockBtn').onclick = () => {
+                const remember = document.getElementById('rememberCheckbox').checked;
+                verifyPassword(remember);
+            };
+            document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const remember = document.getElementById('rememberCheckbox').checked;
+                    verifyPassword(remember);
+                }
+            });
+        }
+
+        // ---------- 股票监控核心 ----------
         let masterStocks = [];
-        let columnOrder = [];
         let filterText = '';
         let selectedCategory = 'all';
         let sortKey = null;
@@ -341,7 +372,7 @@
         let refreshTimer = null;
         let refreshIntervalSec = 300;
         let isLoading = false;
-        
+
         const tbody = document.getElementById('tableBody');
         const thead = document.getElementById('tableHeader');
         const filterInput = document.getElementById('filterInput');
@@ -352,7 +383,7 @@
         const uploadExcelInput = document.getElementById('uploadExcel');
         const categorySelect = document.getElementById('categorySelect');
         const downloadTemplateBtn = document.getElementById('downloadTemplate');
-        
+
         const toFixed2 = (v) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(2) : '--';
         const toFixed2Signed = (v) => {
             if (typeof v !== 'number' || isNaN(v)) return '--';
@@ -366,7 +397,7 @@
             if (s === undefined || s === null) return '';
             return String(s).replace(/[&<>]/g, (m) => (m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'));
         };
-        
+
         function toTencentCode(raw) {
             if (!raw) return null;
             let code = String(raw).trim().toUpperCase();
@@ -379,7 +410,7 @@
             if (/^\d{5}$/.test(code) && code.startsWith('0')) return 'hk' + code.substring(1);
             return null;
         }
-        
+
         function fetchQuotesByTencent(stocks) {
             return new Promise((resolve, reject) => {
                 const validStocks = stocks.filter(s => s.tencentCode);
@@ -432,7 +463,7 @@
                 document.head.appendChild(script);
             });
         }
-        
+
         async function refreshQuotes() {
             if (isLoading || !masterStocks.length) {
                 if (!masterStocks.length) updateTimeBadge.innerHTML = '⏳ 无数据，请上传';
@@ -454,9 +485,18 @@
                         stock.todayChange = null;
                         stock.todayChangePercent = null;
                     }
-                    if (stock.currentPrice !== null && !isNaN(stock.currentPrice) && stock.currentPrice !== 0) {
-                        stock.entryPercent = ((stock.entryPrice - stock.currentPrice) / stock.currentPrice) * 100;
-                        stock.heavyPercent = ((stock.heavyPrice - stock.currentPrice) / stock.currentPrice) * 100;
+                    // 正确计算盈亏百分比: (当前价 - 成本)/成本 * 100
+                    if (stock.currentPrice !== null && !isNaN(stock.currentPrice)) {
+                        if (stock.entryPrice !== 0 && !isNaN(stock.entryPrice)) {
+                            stock.entryPercent = ((stock.currentPrice - stock.entryPrice) / stock.entryPrice) * 100;
+                        } else {
+                            stock.entryPercent = null;
+                        }
+                        if (stock.heavyPrice !== 0 && !isNaN(stock.heavyPrice)) {
+                            stock.heavyPercent = ((stock.currentPrice - stock.heavyPrice) / stock.heavyPrice) * 100;
+                        } else {
+                            stock.heavyPercent = null;
+                        }
                     } else {
                         stock.entryPercent = null;
                         stock.heavyPercent = null;
@@ -471,7 +511,7 @@
                 isLoading = false;
             }
         }
-        
+
         function buildColumnOrder(excelExtraCols) {
             const columns = [
                 { key: 'name', title: '📄 名称', sortField: 'name' },
@@ -489,7 +529,7 @@
             }
             return columns;
         }
-        
+
         function extractStock(row, colMapping) {
             const stock = {
                 name: row[colMapping.name] ? String(row[colMapping.name]).trim() : '',
@@ -515,7 +555,7 @@
             if (!stock.tencentCode) console.warn(`代码转换失败: ${stock.rawSymbol}`);
             return stock;
         }
-        
+
         function parseExcelAndLoad(dataBuffer) {
             try {
                 const workbook = XLSX.read(dataBuffer, { type: 'array' });
@@ -572,7 +612,7 @@
                 tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
             }
         }
-        
+
         function renderTableHeader(columns) {
             let html = '<tr>';
             for (let col of columns) {
@@ -583,10 +623,10 @@
             thead.innerHTML = html;
             attachSortEvents();
         }
-        
+
         function renderTable(stocks, columns) {
             if (!stocks.length) {
-                tbody.innerHTML = `<td><td colspan="${columns.length}" style="text-align:center; padding: 40px;">📭 无匹配股票，请调整筛选</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="${columns.length}" style="text-align:center; padding: 40px;">📭 无匹配股票，请调整筛选</td></tr>`;
                 return;
             }
             let html = '';
@@ -616,20 +656,22 @@
                         const percent = s.entryPercent;
                         cellValue = `${toFixed2(price)}`;
                         if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'price-up' : 'price-down'}">${toPercent(percent)}</span>`;
+                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
                         } else {
                             cellValue += `<span class="sub-percent">--</span>`;
                         }
+                        // 入场列不标红绿，无 cellClass
                     }
                     else if (col.key === 'heavyPrice') {
                         const price = s.heavyPrice;
                         const percent = s.heavyPercent;
                         cellValue = `${toFixed2(price)}`;
                         if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'price-up' : 'price-down'}">${toPercent(percent)}</span>`;
+                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
                         } else {
                             cellValue += `<span class="sub-percent">--</span>`;
                         }
+                        // 重仓列不标红绿
                     }
                     else if (col.key === 'takeProfit') cellValue = toFixed2(s.takeProfit);
                     else if (col.key === 'remarks') cellValue = escapeHtml(s.remarks);
@@ -642,7 +684,7 @@
             }
             tbody.innerHTML = html;
         }
-        
+
         function filterAndSortAndRender() {
             if (!masterStocks.length || !window.displayColumns) return;
             let filtered = [...masterStocks];
@@ -681,7 +723,7 @@
             }
             renderTable(filtered, window.displayColumns);
         }
-        
+
         function updateCategoryFilter() {
             const categories = new Set();
             categories.add('all');
@@ -696,7 +738,7 @@
             categorySelect.innerHTML = options;
             categorySelect.value = selectedCategory;
         }
-        
+
         function attachSortEvents() {
             const ths = document.querySelectorAll('#stockTable th');
             ths.forEach(th => {
@@ -713,7 +755,7 @@
                 th.clickHandler = handler;
             });
         }
-        
+
         function updateSortIcons() {
             const ths = document.querySelectorAll('#stockTable th');
             ths.forEach(th => {
@@ -725,7 +767,7 @@
                 }
             });
         }
-        
+
         function startAutoRefresh() {
             if (refreshTimer) clearInterval(refreshTimer);
             if (!masterStocks.length) return;
@@ -733,7 +775,7 @@
                 if (masterStocks.length) refreshQuotes();
             }, refreshIntervalSec * 1000);
         }
-        
+
         function changeInterval(sec) {
             refreshIntervalSec = sec;
             if (refreshTimer) {
@@ -741,7 +783,7 @@
                 startAutoRefresh();
             }
         }
-        
+
         function downloadTemplate() {
             const templateData = [
                 { "名称": "招商银行", "代码": "600036", "分类": "银行", "入场": 30.5, "重仓": 32.0, "止盈": 40.0, "备注": "长期持有" },
@@ -752,7 +794,7 @@
             XLSX.utils.book_append_sheet(wb, ws, "股票持仓");
             XLSX.writeFile(wb, "data.xlsx");
         }
-        
+
         async function loadDefaultExcel() {
             try {
                 const res = await fetch('./data.xlsx');
@@ -762,12 +804,12 @@
             } catch (err) {
                 console.warn('未找到 data.xlsx，请手动上传', err);
                 masterStocks = [];
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 48px;">📂 未找到 data.xlsx，请通过上方按钮上传 Excel 文件</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 48px;">📂 请通过上方按钮上传 Excel 文件</td></tr>';
                 if (refreshTimer) clearInterval(refreshTimer);
                 refreshTimer = null;
             }
         }
-        
+
         function bindUI() {
             filterInput.addEventListener('input', (e) => { filterText = e.target.value; filterAndSortAndRender(); });
             resetFilterBtn.addEventListener('click', () => { filterText = ''; filterInput.value = ''; filterAndSortAndRender(); });
@@ -784,8 +826,7 @@
             downloadTemplateBtn.addEventListener('click', downloadTemplate);
             categorySelect.addEventListener('change', (e) => { selectedCategory = e.target.value; filterAndSortAndRender(); });
         }
-        
-        // 将原本的 init 改为外部可调用的函数
+
         window.initStockApp = function() {
             bindUI();
             loadDefaultExcel().then(() => {
@@ -795,12 +836,6 @@
                 }
             }).catch(e => console.warn(e));
         };
-        
-        // 如果密码正确，会调用 initStockApp；如果不需要密码验证（覆盖原逻辑），则直接执行
-        // 但为了防止未验证就自动加载，我们不在这里自动调用，等待密码验证后由 unlock 调用
-        // 注意：有可能脚本加载完用户还未输密码，此时不加载数据。密码验证后调用 initStockApp。
-        // 为了确保密码框的显示优先，把自动加载的调用移除。
-        // 原有立即执行 init 的逻辑已删除，全部交给密码验证按钮。
     </script>
 </body>
 </html>
