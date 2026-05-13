@@ -71,20 +71,6 @@
             border-color: #1e4b7a;
             box-shadow: 0 0 0 3px rgba(30,75,122,0.2);
         }
-        .remember-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 0.8rem;
-        }
-        .remember-row label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            color: #4b5563;
-        }
         .password-card button {
             background: #1e4b7a;
             color: white;
@@ -212,9 +198,6 @@
         .code { font-family: monospace; font-size: 0.8rem; color: #5f7f9e; }
         .price-up { color: #d0312d; font-weight: 600; }
         .price-down { color: #1f8a4c; font-weight: 600; }
-        .profit-up { color: #d0312d; font-weight: 600; }
-        .profit-down { color: #1f8a4c; font-weight: 600; }
-        .neutral { color: #6c7a91; }
         .sub-percent { font-size: 0.7rem; opacity: 0.85; margin-top: 2px; display: block; }
         .upload-area {
             background: #fefce8;
@@ -253,11 +236,6 @@
             <h2>🔒 授权访问</h2>
             <p>请输入密码查看股票监控数据</p>
             <input type="password" id="passwordInput" placeholder="密码" autocomplete="off">
-            <div class="remember-row">
-                <label>
-                    <input type="checkbox" id="rememberCheckbox"> 记住我（7天内免登录）
-                </label>
-            </div>
             <button id="unlockBtn">验证并进入</button>
             <div id="errorMsg" class="error-msg">密码错误，请重试</div>
         </div>
@@ -307,48 +285,21 @@
             <div class="table-wrapper">
                 <table id="stockTable">
                     <thead id="tableHeader"></thead>
-                    <tbody id="tableBody"><td><td colspan="10">📁 正在加载 data.xlsx 或等待上传...</td></tr></tbody>
+                    <tbody id="tableBody"><tr><td colspan="10">📁 正在加载 data.xlsx 或等待上传...</td></tr></tbody>
                 </table>
             </div>
             <div class="footer-note">
                 ⚡ 实时行情：腾讯财经 | 入场/重仓百分比 = (当前价 - 成本)/成本（正盈利，负亏损）<br>
-                🔄 今日涨跌按涨跌幅百分比排序 | 支持分类筛选、名称/代码搜索、点击表头排序
+                🔄 今日涨跌幅按百分比排序 | 支持分类筛选、名称/代码搜索、点击表头排序
             </div>
         </div>
     </div>
 
     <script>
         // ---------- 密码配置 ----------
-        const PASSWORD = "dayuchi0315";   // 修改成你自己的密码
-        const STORAGE_KEY = "stock_monitor_auth";
-        const EXPIRE_DAYS = 7;
+        const PASSWORD = "123";   // 修改成你自己的密码
 
-        // 检查是否已经记住登录
-        function isRemembered() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (!stored) return false;
-            try {
-                const data = JSON.parse(stored);
-                if (data.expire && Date.now() < data.expire) {
-                    return true;
-                } else {
-                    localStorage.removeItem(STORAGE_KEY);
-                    return false;
-                }
-            } catch(e) { return false; }
-        }
-
-        // 保存登录状态
-        function saveRemember(remember) {
-            if (remember) {
-                const expireTime = Date.now() + EXPIRE_DAYS * 24 * 60 * 60 * 1000;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({ expire: expireTime }));
-            } else {
-                localStorage.removeItem(STORAGE_KEY);
-            }
-        }
-
-        // 解锁页面
+        // 解锁页面（无缓存机制）
         function unlockApp() {
             document.getElementById('passwordOverlay').style.display = 'none';
             document.getElementById('mainContent').style.display = 'block';
@@ -356,10 +307,9 @@
         }
 
         // 验证密码
-        function verifyPassword(remember) {
+        function verifyPassword() {
             const entered = document.getElementById('passwordInput').value;
             if (entered === PASSWORD) {
-                saveRemember(remember);
                 unlockApp();
                 return true;
             } else {
@@ -371,22 +321,11 @@
             }
         }
 
-        // 自动尝试记住登录
-        if (isRemembered()) {
-            unlockApp();
-        } else {
-            // 显示密码界面，绑定事件
-            document.getElementById('unlockBtn').onclick = () => {
-                const remember = document.getElementById('rememberCheckbox').checked;
-                verifyPassword(remember);
-            };
-            document.getElementById('passwordInput').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    const remember = document.getElementById('rememberCheckbox').checked;
-                    verifyPassword(remember);
-                }
-            });
-        }
+        // 绑定密码验证事件
+        document.getElementById('unlockBtn').onclick = verifyPassword;
+        document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyPassword();
+        });
 
         // ---------- 股票监控核心 ----------
         let masterStocks = [];
@@ -416,10 +355,6 @@
         }
 
         const toFixed2 = (v) => (typeof v === 'number' && !isNaN(v)) ? v.toFixed(2) : '--';
-        const toFixed2Signed = (v) => {
-            if (typeof v !== 'number' || isNaN(v)) return '--';
-            return v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
-        };
         const toPercent = (v) => {
             if (typeof v !== 'number' || isNaN(v)) return '--';
             return v > 0 ? `+${v.toFixed(2)}%` : `${v.toFixed(2)}%`;
@@ -462,23 +397,17 @@
                             if (parts.length >= 33) {
                                 const current = parseFloat(parts[3]);
                                 const prevClose = parseFloat(parts[4]);
-                                const changeVal = parseFloat(parts[31]);
                                 const changePercent = parseFloat(parts[32]);
                                 if (!isNaN(current) && current > 0) {
                                     quoteMap.set(stock.tencentCode, {
                                         currentPrice: current,
-                                        change: changeVal,
-                                        changePercent: changePercent,
-                                        prevClose: prevClose
+                                        changePercent: changePercent
                                     });
                                 } else if (!isNaN(current) && !isNaN(prevClose)) {
-                                    const altChange = current - prevClose;
-                                    const altPercent = (altChange / prevClose) * 100;
+                                    const altPercent = ((current - prevClose) / prevClose) * 100;
                                     quoteMap.set(stock.tencentCode, {
                                         currentPrice: current,
-                                        change: altChange,
-                                        changePercent: altPercent,
-                                        prevClose: prevClose
+                                        changePercent: altPercent
                                     });
                                 }
                             }
@@ -512,11 +441,9 @@
                     if (tc && quoteMap.has(tc)) {
                         const q = quoteMap.get(tc);
                         stock.currentPrice = q.currentPrice;
-                        stock.todayChange = q.change;
                         stock.todayChangePercent = q.changePercent;
                     } else {
                         stock.currentPrice = null;
-                        stock.todayChange = null;
                         stock.todayChangePercent = null;
                     }
                     // 正确计算盈亏百分比: (当前价 - 成本)/成本 * 100
@@ -576,7 +503,6 @@
                 takeProfit: parseFloat(row[colMapping.takeProfit]) || 0,
                 remarks: colMapping.remarks && row[colMapping.remarks] ? String(row[colMapping.remarks]) : '',
                 currentPrice: null,
-                todayChange: null,
                 todayChangePercent: null,
                 entryPercent: null,
                 heavyPercent: null,
@@ -646,7 +572,7 @@
                 refreshQuotes();
             } catch (err) {
                 console.error(err);
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<table><td colspan="10" style="text-align:center; color:#b91c1c;">❌ 解析失败: ${err.message}</td></tr>`;
             }
         }
 
@@ -678,14 +604,13 @@
                     else if (col.key === 'currentPrice') {
                         const cur = s.currentPrice;
                         cellValue = cur !== null ? cur.toFixed(2) : '--';
-                        if (s.todayChange !== null) cellClass = s.todayChange >= 0 ? 'price-up' : 'price-down';
+                        if (s.todayChangePercent !== null) cellClass = s.todayChangePercent >= 0 ? 'price-up' : 'price-down';
                     }
                     else if (col.key === 'todayChange') {
-                        const change = s.todayChange;
                         const percent = s.todayChangePercent;
-                        if (change !== null && percent !== null) {
-                            cellValue = `${toFixed2Signed(change)}<span class="sub-percent">${toPercent(percent)}</span>`;
-                            cellClass = change >= 0 ? 'price-up' : 'price-down';
+                        if (percent !== null) {
+                            cellValue = toPercent(percent);
+                            cellClass = percent >= 0 ? 'price-up' : 'price-down';
                         } else cellValue = '--';
                     }
                     else if (col.key === 'entryPrice') {
@@ -693,8 +618,7 @@
                         const percent = s.entryPercent;
                         cellValue = `${toFixed2(price)}`;
                         if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'profit-up' : 'profit-down'}">${toPercent(percent)}</span>`;
-                            cellClass = percent >= 0 ? 'profit-up' : 'profit-down';
+                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
                         } else {
                             cellValue += `<span class="sub-percent">--</span>`;
                         }
@@ -704,8 +628,7 @@
                         const percent = s.heavyPercent;
                         cellValue = `${toFixed2(price)}`;
                         if (percent !== null && !isNaN(percent)) {
-                            cellValue += `<span class="sub-percent ${percent >= 0 ? 'profit-up' : 'profit-down'}">${toPercent(percent)}</span>`;
-                            cellClass = percent >= 0 ? 'profit-up' : 'profit-down';
+                            cellValue += `<span class="sub-percent">${toPercent(percent)}</span>`;
                         } else {
                             cellValue += `<span class="sub-percent">--</span>`;
                         }
